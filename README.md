@@ -15,8 +15,7 @@ This data cleaning tool is built to clean and sort messy data. The tool is modul
 7. Dealing with Duplicates.
 8. Handling Outliers.
 9. Data Transformation.
-10. Feature Engineering.
-11. Error Checking and Reporting.
+10. Error Checking and Reporting.
 
 ## Installation
 

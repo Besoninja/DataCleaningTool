@@ -246,12 +246,21 @@ if uploaded_file is not None:
     You can choose how to handle these entries on a column-by-column basis.
     """)
     
+    # Initialize session state for tracking processed columns if not exists
+    if 'processed_columns' not in st.session_state:
+        st.session_state.processed_columns = set()
+    
     if st.button("Analyze Incorrect Entries"):
-        analysis = analyze_incorrect_entries(df)
+        # Only analyze columns that haven't been processed yet
+        remaining_df = df.drop(columns=list(st.session_state.processed_columns))
+        analysis = analyze_incorrect_entries(remaining_df)
         st.session_state.incorrect_entries_analysis = analysis
         
         if not analysis:
-            st.write("No columns with mixed entry types were found.")
+            if st.session_state.processed_columns:
+                st.success("All mixed entry types have been handled!")
+            else:
+                st.write("No columns with mixed entry types were found.")
         else:
             st.success(f"Found {len(analysis)} columns with mixed entry types:")
             
@@ -261,22 +270,47 @@ if uploaded_file is not None:
                 st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']*100:.1f}%)")
                 
                 col1, col2, col3 = st.columns(3)
+                
+                # Create unique keys for each button
                 with col1:
-                    if st.button(f"Replace strings with NaN in {column}"):
+                    if st.button(f"Replace strings with NaN in {column}", 
+                               key=f"str_nan_{column}"):
                         df.loc[details['string_indices'], column] = np.nan
                         st.session_state.processed_df = df
-                        st.success(f"Replaced {details['string_count']} string entries with NaN in {column}")
+                        st.session_state.processed_columns.add(column)
+                        st.success(f"✅ Replaced {details['string_count']} string entries with NaN in column '{column}'")
+                        st.experimental_rerun()
                 
                 with col2:
-                    if st.button(f"Replace numbers with NaN in {column}"):
+                    if st.button(f"Replace numbers with NaN in {column}", 
+                               key=f"num_nan_{column}"):
                         df.loc[details['numeric_indices'], column] = np.nan
                         st.session_state.processed_df = df
-                        st.success(f"Replaced {details['numeric_count']} numeric entries with NaN in {column}")
+                        st.session_state.processed_columns.add(column)
+                        st.success(f"✅ Replaced {details['numeric_count']} numeric entries with NaN in column '{column}'")
+                        st.experimental_rerun()
                 
                 with col3:
-                    if st.button(f"Skip {column}"):
-                        st.info(f"No changes made to column {column}")
+                    if st.button(f"Skip {column}", 
+                               key=f"skip_{column}"):
+                        st.session_state.processed_columns.add(column)
+                        st.info(f"⏭️ Skipped handling incorrect entries in column '{column}'")
+                        st.experimental_rerun()
     
+    # Show summary of processed columns
+    if st.session_state.processed_columns:
+        st.markdown("---")
+        st.markdown("**Processing History:**")
+        processed_cols = list(st.session_state.processed_columns)
+        if processed_cols:
+            st.write(f"✓ Processed columns: {', '.join(processed_cols)}")
+            
+        # Add button to reset processing history
+        if st.button("Reset Processing History"):
+            st.session_state.processed_columns = set()
+            st.success("Processing history has been reset. You can now reprocess columns.")
+            st.experimental_rerun()
+
     # Categorical Data Handling
     st.header("5. Optimise Categorical Columns")
     st.markdown("""

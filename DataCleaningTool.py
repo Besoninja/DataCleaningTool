@@ -5,6 +5,10 @@ import numpy as np
 # Set page config
 st.set_page_config(page_title="Data Cleaning Tool", layout="wide")
 
+# Initialize session state for processed dataframe
+if 'processed_df' not in st.session_state:
+    st.session_state.processed_df = None
+
 # Title and description
 st.title("Data Cleaning Tool")
 st.markdown("""
@@ -150,7 +154,10 @@ uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
 if uploaded_file is not None:
     # Load the data
-    df = pd.read_csv(uploaded_file)
+    if st.session_state.processed_df is None:
+        st.session_state.processed_df = pd.read_csv(uploaded_file)
+    
+    df = st.session_state.processed_df  # Use the processed df for display
     st.success("File successfully uploaded!")
     
     # Data Overview Section
@@ -193,7 +200,8 @@ if uploaded_file is not None:
                              key="type_threshold")
     
     if st.button("Clean Mixed Data Types"):
-        df, conversion_report, incorrect_entries = clean_mixed_data(df, type_threshold)
+        cleaned_df, conversion_report, incorrect_entries = clean_mixed_data(df, type_threshold)
+        st.session_state.processed_df = cleaned_df  # Update the processed dataframe
         st.success("Mixed data types have been cleaned!")
         
         # Display conversion report
@@ -215,7 +223,7 @@ if uploaded_file is not None:
             st.write("No incorrect entries were found in the dataset.")
         
         st.subheader("Updated Data Preview:")
-        st.dataframe(df.head())
+        st.dataframe(st.session_state.processed_df.head())
     
     # Categorical Data Handling
     st.header("4. Optimise Categorical Columns")
@@ -234,14 +242,19 @@ if uploaded_file is not None:
                             key="cat_threshold")
     
     if st.button("Convert Object Columns to Categorical"):
-        df = reassign_categorical_data_types(df, cat_threshold)
+        categorical_df = reassign_categorical_data_types(df, cat_threshold)
+        st.session_state.processed_df = categorical_df  # Update the processed dataframe
         st.success("Appropriate columns have been converted to categorical type!")
-        st.dataframe(df.dtypes)
+        st.dataframe(st.session_state.processed_df.dtypes)
     
     # Download processed data
     st.header("5. Download Processed Data")
     if st.button("Download Processed Data"):
-        csv = df.to_csv(index=False)
+        # Add a preview of the processed data
+        st.subheader("Preview of Processed Data:")
+        st.dataframe(st.session_state.processed_df.head())
+        
+        csv = st.session_state.processed_df.to_csv(index=False)
         st.download_button(
             label="Download CSV",
             data=csv,

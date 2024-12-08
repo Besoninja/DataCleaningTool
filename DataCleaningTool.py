@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import io
 
 # Set page config
 st.set_page_config(page_title="Data Cleaning Tool", layout="wide")
@@ -43,6 +40,74 @@ def enhanced_info(df):
     info_df = pd.DataFrame(info_data)
     return info_df, columns_with_missing
 
+def check_column_data_types(dataframe):
+    """
+    Analyze each column to determine its predominant data type based on content.
+    A data type is assigned if more than 95% of values belong to that type.
+    """
+    column_data_types = {}
+    
+    for column in dataframe.columns:
+        string_count = 0
+        numeric_count = 0
+        other_count = 0
+        
+        # Check each entry in the column
+        for entry in dataframe[column]:
+            if pd.isna(entry):  # Skip NaN values
+                continue
+            if isinstance(entry, str):
+                # Try to convert string to numeric
+                try:
+                    float(entry)
+                    numeric_count += 1
+                except ValueError:
+                    string_count += 1
+            elif isinstance(entry, (int, float, np.number)):
+                numeric_count += 1
+            else:
+                other_count += 1
+        
+        # Calculate the ratio of each data type
+        total_entries = len(dataframe[column].dropna())
+        if total_entries == 0:  # Handle completely empty columns
+            column_data_types[column] = 'empty'
+            continue
+            
+        numeric_ratio = numeric_count / total_entries
+        string_ratio = string_count / total_entries
+        
+        # Set threshold for type determination (95%)
+        threshold = 0.95
+        
+        if numeric_ratio > threshold:
+            column_data_types[column] = 'numeric'
+        elif string_ratio > threshold:
+            column_data_types[column] = 'string'
+        else:
+            column_data_types[column] = 'mixed'
+            
+    return column_data_types
+
+def clean_mixed_data(df):
+    """
+    Clean columns based on their predominant data type and remove incorrect entries.
+    """
+    df_cleaned = df.copy()
+    column_types = check_column_data_types(df)
+    
+    for column, dtype in column_types.items():
+        if dtype == 'numeric':
+            # Convert column to numeric, setting invalid entries to NaN
+            df_cleaned[column] = pd.to_numeric(df_cleaned[column], errors='coerce')
+        elif dtype == 'string':
+            # Convert numeric entries in string columns to NaN
+            mask = df_cleaned[column].apply(lambda x: isinstance(x, (int, float, np.number)))
+            df_cleaned.loc[mask, column] = np.nan
+            df_cleaned[column] = df_cleaned[column].astype(str)
+    
+    return df_cleaned
+
 def is_categorical(column, threshold=0.1):
     """Determine if a column should be treated as categorical."""
     unique_ratio = column.nunique() / len(column)
@@ -50,10 +115,11 @@ def is_categorical(column, threshold=0.1):
 
 def reassign_categorical_data_types(df):
     """Reassign columns to 'category' where applicable."""
-    for col in df.select_dtypes(include=['object']).columns:
-        if is_categorical(df[col]):
-            df[col] = pd.Categorical(df[col])
-    return df
+    df_cat = df.copy()
+    for col in df_cat.select_dtypes(include=['object']).columns:
+        if is_categorical(df_cat[col]):
+            df_cat[col] = pd.Categorical(df_cat[col])
+    return df_cat
 
 # File upload
 st.header("1. Upload Data")
@@ -87,31 +153,33 @@ if uploaded_file is not None:
         for col, dtype in columns_with_missing:
             st.write(f"- {col}: {dtype}")
     
-    # Data Type Handling
-    st.header("3. Data Type Handling")
-    if st.button("Convert Categorical Columns"):
-        df = reassign_categorical_data_types(df)
-        st.success("Categorical columns have been converted!")
-        st.dataframe(df.dtypes)
+    # Mixed Data Type Handling
+    st.header("3. Handle Mixed Data Types")
+    st.markdown("""
+    This section identifies columns with mixed data types and cleans them based on the following rules:
+    - If 95% or more of the values in a column are of the same type (numeric or string), 
+      the column is converted to that type
+    - For numeric columns, any non-numeric values are converted to NaN
+    - For string columns, any numeric values are converted to NaN
+    """)
     
-    # Correlation Analysis
-    st.header("4. Correlation Analysis")
-    num_cols = df.select_dtypes(include=['int64', 'float64'])
-    if not num_cols.empty:
-        corr_matrix = num_cols.corr()
-        
-        # Create correlation heatmap
-        fig, ax = plt.subplots(figsize=(10, 8))
-        sns.heatmap(corr_matrix, annot=True, fmt=".2f", ax=ax)
-        st.pyplot(fig)
-        
-        # Show strong correlations
-        st.subheader("Strong Correlations (>0.5)")
-        strong_corr = corr_matrix[(abs(corr_matrix) > 0.5) & (abs(corr_matrix) < 1.0)]
-        for row in strong_corr.index:
-            for col in strong_corr.columns:
-                if not pd.isna(strong_corr.loc[row, col]):
-                    st.write(f"{row} has a correlation of {strong_corr.loc[row, col]:.2f} with {col}")
+    if st.button("Clean Mixed Data Types"):
+        df = clean_mixed_data(df)
+        st.success("Mixed data types have been cleaned!")
+        st.dataframe(df.head())
+    
+    # Categorical Data Handling
+    st.header("4. Optimize Categorical Columns")
+    st.markdown("""
+    This section identifies and converts appropriate columns to categorical data type. 
+    A column is considered categorical if it has fewer unique values than 10% of its total entries.
+    This optimization helps reduce memory usage and improves performance for categorical operations.
+    """)
+    
+    if st.button("Convert Object Columns to Categorical"):
+        df = reassign_categorical_data_types(df)
+        st.success("Appropriate columns have been converted to categorical type!")
+        st.dataframe(df.dtypes)
     
     # Download processed data
     st.header("5. Download Processed Data")

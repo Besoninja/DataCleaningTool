@@ -5,9 +5,11 @@ import numpy as np
 # Set page config
 st.set_page_config(page_title="Data Cleaning Tool", layout="wide")
 
-# Initialize session state for processed dataframe
+# Initialize session state for processed dataframe and analysis results
 if 'processed_df' not in st.session_state:
     st.session_state.processed_df = None
+if 'incorrect_entries_analysis' not in st.session_state:
+    st.session_state.incorrect_entries_analysis = None
 
 # Title and description
 st.title("Data Cleaning Tool")
@@ -89,51 +91,74 @@ def check_column_data_types(dataframe, type_threshold=0.95):
             
     return column_data_types
 
+def analyze_incorrect_entries(df):
+    """
+    Analyze columns for incorrect entries (numerical in string columns and vice versa).
+    Returns a dictionary with analysis for each affected column.
+    """
+    analysis = {}
+    
+    for column in df.columns:
+        string_entries = []
+        numeric_entries = []
+        
+        for idx, entry in enumerate(df[column]):
+            if pd.isna(entry):
+                continue
+                
+            if isinstance(entry, str):
+                try:
+                    float(entry)  # If this succeeds, it's a number in string form
+                    numeric_entries.append(idx)
+                except ValueError:
+                    string_entries.append(idx)
+            elif isinstance(entry, (int, float, np.number)):
+                numeric_entries.append(idx)
+        
+        total_valid = len(string_entries) + len(numeric_entries)
+        if total_valid == 0:
+            continue
+            
+        str_ratio = len(string_entries) / total_valid if total_valid > 0 else 0
+        num_ratio = len(numeric_entries) / total_valid if total_valid > 0 else 0
+        
+        # Only include columns with mixed types
+        if 0 < str_ratio < 1 and 0 < num_ratio < 1:
+            analysis[column] = {
+                'string_count': len(string_entries),
+                'numeric_count': len(numeric_entries),
+                'string_indices': string_entries,
+                'numeric_indices': numeric_entries,
+                'string_ratio': str_ratio,
+                'numeric_ratio': num_ratio
+            }
+    
+    return analysis
+
 def clean_mixed_data(df, type_threshold=0.95):
     """
-    Clean columns based on their predominant data type and remove incorrect entries.
-    Returns cleaned dataframe and report of changes made.
+    Convert columns to their predominant data type based on the threshold.
     """
     df_cleaned = df.copy()
     column_types = check_column_data_types(df, type_threshold)
     conversion_report = []
-    incorrect_entries = {}
     
     for column, dtype in column_types.items():
         original_type = df[column].dtype
         if dtype == 'numeric':
-            non_numeric_count = df_cleaned[column].apply(
-                lambda x: not pd.isna(x) and not isinstance(x, (int, float, np.number))
-            ).sum()
-            
             df_cleaned[column] = pd.to_numeric(df_cleaned[column], errors='coerce')
-            
             if original_type != df_cleaned[column].dtype:
                 conversion_report.append(
                     f"Column '{column}' converted from {original_type} to {df_cleaned[column].dtype}"
                 )
-            
-            if non_numeric_count > 0:
-                incorrect_entries[column] = non_numeric_count
-                
         elif dtype == 'string':
-            numeric_count = df_cleaned[column].apply(
-                lambda x: isinstance(x, (int, float, np.number))
-            ).sum()
-            
-            mask = df_cleaned[column].apply(lambda x: isinstance(x, (int, float, np.number)))
-            df_cleaned.loc[mask, column] = np.nan
             df_cleaned[column] = df_cleaned[column].astype(str)
-            
             if original_type != df_cleaned[column].dtype:
                 conversion_report.append(
                     f"Column '{column}' converted from {original_type} to {df_cleaned[column].dtype}"
                 )
-            
-            if numeric_count > 0:
-                incorrect_entries[column] = numeric_count
     
-    return df_cleaned, conversion_report, incorrect_entries
+    return df_cleaned, conversion_report
 
 def is_categorical(column, cat_threshold=0.1):
     """Determine if a column should be treated as categorical."""
@@ -156,8 +181,7 @@ if uploaded_file is not None:
     # Load the data
     if st.session_state.processed_df is None:
         st.session_state.processed_df = pd.read_csv(uploaded_file)
-    
-    df = st.session_state.processed_df  # Use the processed df for display
+    df = st.session_state.processed_df
     st.success("File successfully uploaded!")
     
     # Data Overview Section
@@ -186,7 +210,8 @@ if uploaded_file is not None:
     # Mixed Data Type Handling
     st.header("3. Handle Mixed Data Types")
     st.markdown("""
-    This section identifies columns with mixed data types and cleans them based on the predominant type in each column.
+    This section converts columns to their predominant data type based on the threshold.
+    Columns will be converted to either numeric or string type if they meet the threshold criteria.
     """)
     
     # Add slider for data type threshold
@@ -199,34 +224,61 @@ if uploaded_file is not None:
                              step=0.01,
                              key="type_threshold")
     
-    if st.button("Clean Mixed Data Types"):
-        cleaned_df, conversion_report, incorrect_entries = clean_mixed_data(df, type_threshold)
-        st.session_state.processed_df = cleaned_df  # Update the processed dataframe
-        st.success("Mixed data types have been cleaned!")
+    if st.button("Convert Mixed Data Types"):
+        cleaned_df, conversion_report = clean_mixed_data(df, type_threshold)
+        st.session_state.processed_df = cleaned_df
         
-        # Display conversion report
         if conversion_report:
+            st.success("Data types have been converted!")
             st.subheader("Data Type Conversions:")
             for change in conversion_report:
                 st.write(change)
         else:
             st.write("No data type conversions were necessary.")
         
-        # Display incorrect entries report
-        if incorrect_entries:
-            st.subheader("Incorrect Entries Converted to NaN:")
-            for column, count in incorrect_entries.items():
-                st.write(f"- {column}: {count} incorrect entries identified and converted to NaN")
-            
-            st.warning("⚠️ Incorrect entries have been converted to NaN. You will need to run the 'Handle Missing Values' module to address these missing values.")
-        else:
-            st.write("No incorrect entries were found in the dataset.")
-        
         st.subheader("Updated Data Preview:")
         st.dataframe(st.session_state.processed_df.head())
     
+    # Handle Incorrect Entries
+    st.header("4. Remove Incorrect Entries")
+    st.markdown("""
+    This section identifies columns containing incorrect entries (e.g., numerical values in string columns or string values in numerical columns).
+    You can choose how to handle these entries on a column-by-column basis.
+    """)
+    
+    if st.button("Analyze Incorrect Entries"):
+        analysis = analyze_incorrect_entries(df)
+        st.session_state.incorrect_entries_analysis = analysis
+        
+        if not analysis:
+            st.write("No columns with mixed entry types were found.")
+        else:
+            st.success(f"Found {len(analysis)} columns with mixed entry types:")
+            
+            for column, details in analysis.items():
+                st.write(f"\n**Column: {column}**")
+                st.write(f"- String entries: {details['string_count']} ({details['string_ratio']*100:.1f}%)")
+                st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']*100:.1f}%)")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button(f"Replace strings with NaN in {column}"):
+                        df.loc[details['string_indices'], column] = np.nan
+                        st.session_state.processed_df = df
+                        st.success(f"Replaced {details['string_count']} string entries with NaN in {column}")
+                
+                with col2:
+                    if st.button(f"Replace numbers with NaN in {column}"):
+                        df.loc[details['numeric_indices'], column] = np.nan
+                        st.session_state.processed_df = df
+                        st.success(f"Replaced {details['numeric_count']} numeric entries with NaN in {column}")
+                
+                with col3:
+                    if st.button(f"Skip {column}"):
+                        st.info(f"No changes made to column {column}")
+    
     # Categorical Data Handling
-    st.header("4. Optimise Categorical Columns")
+    st.header("5. Optimise Categorical Columns")
     st.markdown("""
     This section identifies and converts appropriate columns to categorical data type.
     """)
@@ -243,14 +295,13 @@ if uploaded_file is not None:
     
     if st.button("Convert Object Columns to Categorical"):
         categorical_df = reassign_categorical_data_types(df, cat_threshold)
-        st.session_state.processed_df = categorical_df  # Update the processed dataframe
+        st.session_state.processed_df = categorical_df
         st.success("Appropriate columns have been converted to categorical type!")
         st.dataframe(st.session_state.processed_df.dtypes)
     
     # Download processed data
-    st.header("5. Download Processed Data")
-    if st.button("Download Processed Data"):
-        # Add a preview of the processed data
+    st.header("6. Download Processed Data")
+    if st.button("Show Final Data Preview"):
         st.subheader("Preview of Processed Data:")
         st.dataframe(st.session_state.processed_df.head())
         

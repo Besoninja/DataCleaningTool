@@ -92,21 +92,52 @@ def check_column_data_types(dataframe):
 def clean_mixed_data(df):
     """
     Clean columns based on their predominant data type and remove incorrect entries.
+    Returns cleaned dataframe and report of changes made.
     """
     df_cleaned = df.copy()
     column_types = check_column_data_types(df)
+    conversion_report = []
+    incorrect_entries = {}
     
     for column, dtype in column_types.items():
+        original_type = df[column].dtype
         if dtype == 'numeric':
+            # Count non-numeric entries before conversion
+            non_numeric_count = df_cleaned[column].apply(
+                lambda x: not pd.isna(x) and not isinstance(x, (int, float, np.number))
+            ).sum()
+            
             # Convert column to numeric, setting invalid entries to NaN
             df_cleaned[column] = pd.to_numeric(df_cleaned[column], errors='coerce')
+            
+            if original_type != df_cleaned[column].dtype:
+                conversion_report.append(
+                    f"Column '{column}' converted from {original_type} to {df_cleaned[column].dtype}"
+                )
+            
+            if non_numeric_count > 0:
+                incorrect_entries[column] = non_numeric_count
+                
         elif dtype == 'string':
-            # Convert numeric entries in string columns to NaN
+            # Count numeric entries in string columns before conversion
+            numeric_count = df_cleaned[column].apply(
+                lambda x: isinstance(x, (int, float, np.number))
+            ).sum()
+            
+            # Convert numeric entries to NaN
             mask = df_cleaned[column].apply(lambda x: isinstance(x, (int, float, np.number)))
             df_cleaned.loc[mask, column] = np.nan
             df_cleaned[column] = df_cleaned[column].astype(str)
+            
+            if original_type != df_cleaned[column].dtype:
+                conversion_report.append(
+                    f"Column '{column}' converted from {original_type} to {df_cleaned[column].dtype}"
+                )
+            
+            if numeric_count > 0:
+                incorrect_entries[column] = numeric_count
     
-    return df_cleaned
+    return df_cleaned, conversion_report, incorrect_entries
 
 def is_categorical(column, threshold=0.1):
     """Determine if a column should be treated as categorical."""
@@ -164,8 +195,28 @@ if uploaded_file is not None:
     """)
     
     if st.button("Clean Mixed Data Types"):
-        df = clean_mixed_data(df)
+        df, conversion_report, incorrect_entries = clean_mixed_data(df)
         st.success("Mixed data types have been cleaned!")
+        
+        # Display conversion report
+        if conversion_report:
+            st.subheader("Data Type Conversions:")
+            for change in conversion_report:
+                st.write(change)
+        else:
+            st.write("No data type conversions were necessary.")
+        
+        # Display incorrect entries report
+        if incorrect_entries:
+            st.subheader("Incorrect Entries Converted to NaN:")
+            for column, count in incorrect_entries.items():
+                st.write(f"- {column}: {count} incorrect entries identified and converted to NaN")
+            
+            st.warning("⚠️ Incorrect entries have been converted to NaN. You will need to run the 'Handle Missing Values' module to address these missing values.")
+        else:
+            st.write("No incorrect entries were found in the dataset.")
+        
+        st.subheader("Updated Data Preview:")
         st.dataframe(df.head())
     
     # Categorical Data Handling

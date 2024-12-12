@@ -204,8 +204,12 @@ left_col, right_col = st.columns([1, 4], gap="medium")
 
 with left_col:
     st.subheader("Enhanced Information Table (Live Updates)")
-    # Display the Enhanced Information Table if data is loaded
     if st.session_state.processed_df is not None:
+        # Add a button to refresh the Enhanced Info Table
+        if st.button("Refresh Enhanced Info Table"):
+            # Rerun the app to refresh the displayed information
+            st.experimental_rerun()
+
         info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
         st.dataframe(info_df, height=600)
     else:

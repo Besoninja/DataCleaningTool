@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Set the page configuration FIRST (must be the first Streamlit command)
+# Set the page configuration at the very start
 st.set_page_config(page_title="Data Cleaning Tool", layout="wide")
 
 # Initialise session state variables
@@ -15,16 +15,23 @@ if 'processed_columns' not in st.session_state:
 
 def generate_enhanced_information_table(dataframe):
     """
-    Generate an enhanced overview table for a given DataFrame:
-    - ColumnName, DataType, UniqueValues, NullCount, % EmptyCells
+    Generate an enhanced overview table for a given DataFrame including:
+    - ColumnName
+    - DataType
+    - UniqueValues
+    - NullCount
+    - % EmptyCells (2 decimal places)
 
     Parameters:
-        dataframe (pd.DataFrame): The dataset for which to generate the information table.
+        dataframe (pd.DataFrame): The dataset to analyze.
 
     Returns:
         tuple: (info_dataframe, columns_with_missing)
-               info_dataframe (pd.DataFrame): Summary table with column details.
-               columns_with_missing (list): List of (column_name, dtype) for columns with missing values.
+            info_dataframe (pd.DataFrame): A summary table with column-level details.
+            columns_with_missing (list): A list of tuples (column_name, dtype) for columns with missing values.
+
+    Example usage:
+        info_df, cols_missing = generate_enhanced_information_table(df)
     """
     info_data = {
         'ColumnName': [],
@@ -59,11 +66,14 @@ def determine_column_data_types(dataframe, type_threshold=0.95):
     Determine the predominant data type of each column based on a threshold.
 
     Parameters:
-        dataframe (pd.DataFrame)
-        type_threshold (float): Ratio needed to classify a column as numeric or string.
+        dataframe (pd.DataFrame): The dataset to classify.
+        type_threshold (float): The proportion threshold for classifying a column as numeric or string.
 
     Returns:
         dict: {column_name: 'numeric'|'string'|'mixed'|'empty'}
+
+    Example usage:
+        column_types = determine_column_data_types(df, 0.95)
     """
     column_data_types = {}
     
@@ -75,7 +85,7 @@ def determine_column_data_types(dataframe, type_threshold=0.95):
             if pd.isna(entry):
                 continue
             if isinstance(entry, str):
-                # Check if we can parse as numeric
+                # Check if the string can be parsed as a number
                 try:
                     float(entry)
                     numeric_count += 1
@@ -107,10 +117,13 @@ def identify_incorrect_entries(dataframe):
     Identify columns that contain a mixture of numeric and string entries.
 
     Parameters:
-        dataframe (pd.DataFrame): The dataset to analyse.
+        dataframe (pd.DataFrame): The dataset to analyze.
 
     Returns:
-        dict: {column_name: analysis_details}
+        dict: {column_name: {string_count, numeric_count, string_indices, numeric_indices, string_ratio, numeric_ratio}}
+
+    Example usage:
+        analysis = identify_incorrect_entries(df)
     """
     analysis_results = {}
     
@@ -132,20 +145,19 @@ def identify_incorrect_entries(dataframe):
         
         total_valid = len(string_indices) + len(numeric_indices)
         if total_valid == 0:
-            # No entries to classify
             continue
             
-        string_ratio = len(string_indices) / total_valid if total_valid > 0 else 0
-        numeric_ratio = len(numeric_indices) / total_valid if total_valid > 0 else 0
+        string_ratio = (len(string_indices) / total_valid)*100 if total_valid > 0 else 0
+        numeric_ratio = (len(numeric_indices) / total_valid)*100 if total_valid > 0 else 0
         
         # Only consider if there's a meaningful mixture
-        if 0 < string_ratio < 1 and 0 < numeric_ratio < 1:
+        if 0 < string_ratio < 100 and 0 < numeric_ratio < 100:
             analysis_results[column] = {
                 'string_count': len(string_indices),
                 'numeric_count': len(numeric_indices),
                 'string_indices': string_indices,
                 'numeric_indices': numeric_indices,
-                'string_ratio': string_ratio,
+                'string_ratio': string_ratio,  # store as percentage directly
                 'numeric_ratio': numeric_ratio
             }
     
@@ -161,6 +173,9 @@ def convert_mixed_data_types(dataframe, type_threshold=0.95):
 
     Returns:
         (pd.DataFrame, list): (cleaned_df, conversion_report)
+
+    Example usage:
+        df_cleaned, report = convert_mixed_data_types(df, 0.95)
     """
     cleaned_dataframe = dataframe.copy()
     column_types = determine_column_data_types(dataframe, type_threshold)
@@ -184,7 +199,18 @@ def convert_mixed_data_types(dataframe, type_threshold=0.95):
 
 def should_treat_as_categorical(column, cat_threshold=0.1):
     """
-    Determine if a column should be categorical based on unique value ratio.
+    Determine if a column should be treated as categorical based on unique value ratio.
+
+    Parameters:
+        column (pd.Series)
+        cat_threshold (float)
+
+    Returns:
+        bool
+
+    Example usage:
+        if should_treat_as_categorical(df['col'], 0.1):
+            df['col'] = pd.Categorical(df['col'])
     """
     unique_ratio = column.nunique() / len(column)
     return unique_ratio < cat_threshold
@@ -192,6 +218,16 @@ def should_treat_as_categorical(column, cat_threshold=0.1):
 def convert_to_categorical_types(dataframe, cat_threshold=0.1):
     """
     Convert suitable object-type columns to categorical.
+
+    Parameters:
+        dataframe (pd.DataFrame)
+        cat_threshold (float)
+
+    Returns:
+        pd.DataFrame
+
+    Example usage:
+        df_categorical = convert_to_categorical_types(df, 0.1)
     """
     dataframe_converted = dataframe.copy()
     for col in dataframe_converted.select_dtypes(include=['object']).columns:
@@ -204,12 +240,11 @@ left_col, right_col = st.columns([1, 4], gap="medium")
 
 with left_col:
     st.subheader("Enhanced Information Table (Live Updates)")
-    if st.session_state.processed_df is not None:
-        # Add a button to refresh the Enhanced Info Table
-        if st.button("Refresh Enhanced Info Table"):
-            # Rerun the app to refresh the displayed information
-            st.experimental_rerun()
+    # Button to refresh Enhanced Info Table - pressing it causes a rerun
+    if st.button("Refresh Enhanced Info Table"):
+        pass  # No action needed; button press triggers a rerun automatically
 
+    if st.session_state.processed_df is not None:
         info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
         st.dataframe(info_df, height=600)
     else:
@@ -236,7 +271,7 @@ with right_col:
 
         # Missing Values Summary
         st.subheader("Missing Values Summary")
-        total_missing = df.isnull().sum().sum() / (df.shape[0] * df.shape[1]) * 100
+        total_missing = (df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100
         st.write(f"Total Missing Value Proportion: {total_missing:.2f}%")
         
         if 'columns_with_missing' in locals() and columns_with_missing:
@@ -246,7 +281,7 @@ with right_col:
         
         # Handle Mixed Data Types
         st.header("3. Handle Mixed Data Types")
-        st.markdown("""Convert columns to predominant data type.""")
+        st.markdown("Convert columns to their predominant data type based on a threshold.")
         slider_col, _ = st.columns([0.3, 0.7])
         with slider_col:
             type_threshold = st.slider(
@@ -261,7 +296,7 @@ with right_col:
         if st.button("Convert Mixed Data Types"):
             cleaned_df, conversion_report = convert_mixed_data_types(df, type_threshold)
             st.session_state.processed_df = cleaned_df
-            df = st.session_state.processed_df  # Update reference
+            df = st.session_state.processed_df
             
             if conversion_report:
                 st.success("Data types have been converted!")
@@ -276,9 +311,8 @@ with right_col:
 
         # Handle Incorrect Entries
         st.header("4. Remove Incorrect Entries")
-        st.markdown("Identify and fix columns with incorrect entries.")
-        
-        # Analyse Incorrect Entries
+        st.markdown("Identify and fix columns with incorrect entries (mixed numeric/string).")
+
         if st.button("Analyse Incorrect Entries"):
             # Filter out columns already processed
             remaining_df = df.drop(columns=list(st.session_state.processed_columns), errors='ignore')
@@ -294,8 +328,8 @@ with right_col:
                 st.success(f"Found {len(analysis)} columns with mixed entry types:")
                 for column, details in analysis.items():
                     st.write(f"\n**Column: {column}**")
-                    st.write(f"- String entries: {details['string_count']} ({details['string_ratio']*100:.1f}%)")
-                    st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']*100:.1f}%)")
+                    st.write(f"- String entries: {details['string_count']} ({details['string_ratio']:.2f}%)")
+                    st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']:.2f}%)")
                     
                     c1, c2, c3 = st.columns(3)
                     
@@ -305,7 +339,6 @@ with right_col:
                             st.session_state.processed_df = df
                             st.session_state.processed_columns.add(column)
                             st.success(f"✅ Replaced string entries with NaN in '{column}'")
-                            st.experimental_rerun()
                     
                     with c2:
                         if st.button(f"Replace numbers with NaN in {column}", key=f"num_nan_{column}"):
@@ -313,13 +346,11 @@ with right_col:
                             st.session_state.processed_df = df
                             st.session_state.processed_columns.add(column)
                             st.success(f"✅ Replaced numeric entries with NaN in '{column}'")
-                            st.experimental_rerun()
                     
                     with c3:
                         if st.button(f"Skip {column}", key=f"skip_{column}"):
                             st.session_state.processed_columns.add(column)
                             st.info(f"⏭️ Skipped handling incorrect entries in '{column}'")
-                            st.experimental_rerun()
 
         # Processing History
         if st.session_state.processed_columns:
@@ -329,11 +360,9 @@ with right_col:
             if processed_cols_list:
                 st.write(f"✓ Processed columns: {', '.join(processed_cols_list)}")
             
-            # Reset processing history
             if st.button("Reset Processing History"):
                 st.session_state.processed_columns = set()
                 st.success("Processing history has been reset.")
-                st.experimental_rerun()
 
         # Optimise Categorical Columns
         st.header("5. Optimise Categorical Columns")

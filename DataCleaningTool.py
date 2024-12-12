@@ -239,7 +239,7 @@ def convert_to_categorical_types(dataframe, cat_threshold=0.1):
 left_col, right_col = st.columns([1, 4], gap="medium")
 
 with left_col:
-    st.subheader("Enhanced Information Table (Live Updates)")
+    st.subheader("Enhanced Information Table")
     # Button to refresh Enhanced Info Table - pressing it causes a rerun
     if st.button("Refresh Enhanced Info Table"):
         pass  # No action needed; button press triggers a rerun automatically

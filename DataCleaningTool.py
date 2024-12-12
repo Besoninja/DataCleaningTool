@@ -339,8 +339,8 @@ with right_col:
                 st.success(f"Found {len(analysis)} columns with mixed entry types:")
                 for column, details in analysis.items():
                     st.write(f"\n**Column: {column}**")
-                    st.write(f"- String entries: {details['string_count']} ({details['string_ratio']*100:.1f}%)")
-                    st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']*100:.1f}%)")
+                    st.write(f"- String entries: {details['string_count']} ({details['string_ratio']*100:.2f}%)")
+                    st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']*100:.2f}%)")
                     
                     c1, c2, c3 = st.columns(3)
                     

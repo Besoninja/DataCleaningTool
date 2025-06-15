@@ -384,9 +384,68 @@ with right_col:
             df = st.session_state.processed_df
             st.success("Appropriate columns have been converted to categorical type!")
             st.dataframe(df.dtypes)
-
+            
+        # Impute Missing Values (Step 1)
+        st.header("6. Impute Missing Values")
+        
+        df = st.session_state.processed_df
+        if 'df_backup' not in st.session_state:
+            st.session_state.df_backup = None
+        if 'impute_log' not in st.session_state:
+            st.session_state.impute_log = []
+        
+        missing_columns = df.columns[df.isnull().any()]
+        if not missing_columns.any():
+            st.info("🎉 No missing values found!")
+        else:
+            selected_column = st.selectbox("Select a column to impute", missing_columns)
+            col_data = df[selected_column]
+            dtype = col_data.dtype
+        
+            # Determine mode and methods
+            string_methods = ["Mode", "Fill with NA", "Fill with custom value", "Forward Fill (LOCF)", "Backward Fill (NOCB)"]
+            numeric_simple = string_methods + ["Mean", "Median"]
+            advanced_methods = ["KNN", "Regression", "MICE", "MissForest", "Interpolation", "EM", "Bayesian"]
+        
+            if dtype == object or dtype.name == 'category':
+                impute_mode = "String / Categorical"
+                available_methods = string_methods
+            elif np.issubdtype(dtype, np.number):
+                impute_mode = "Numeric"
+                available_methods = numeric_simple + advanced_methods
+            else:
+                impute_mode = "Unsupported"
+                available_methods = []
+        
+            st.write(f"📊 Column `{selected_column}` detected as: **{impute_mode}**")
+        
+            st.subheader("🟦 Simple Methods")
+            for method in string_methods:
+                disabled = method not in available_methods
+                with st.expander(f"{method} {'🚫' if disabled else ''}"):
+                    st.write(f"ℹ️ {method} is {'not available' if disabled else 'a simple method for categorical/numeric data.'}")
+        
+            if impute_mode == "Numeric":
+                st.subheader("🟨 Numeric-Specific Simple Methods")
+                for method in ["Mean", "Median"]:
+                    with st.expander(f"{method}"):
+                        st.write("ℹ️ Averages are quick ways to fill in missing values when data is roughly normal.")
+        
+                st.subheader("🟥 Advanced Imputation Methods")
+                for method in advanced_methods:
+                    with st.expander(f"{method}"):
+                        st.write("ℹ️ Advanced method (not yet implemented). Requires numerical data.")
+        
+            st.markdown("---")
+            if st.button("Undo Last Imputation"):
+                if st.session_state.df_backup is not None:
+                    st.session_state.processed_df = st.session_state.df_backup.copy()
+                    st.success("✅ Last imputation undone.")
+                else:
+                    st.warning("⚠️ No imputation has been done yet.")
+            
         # Download Processed Data
-        st.header("6. Download Processed Data")
+        st.header("7. Download Processed Data")
         if st.button("Show Final Data Preview"):
             st.subheader("Preview of Processed Data:")
             st.dataframe(df.head())

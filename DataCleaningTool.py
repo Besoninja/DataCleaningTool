@@ -271,13 +271,21 @@ with right_col:
 
         # Missing Values Summary
         st.subheader("Missing Values Summary")
-        total_missing = (df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100
-        st.write(f"Total Missing Value Proportion: {total_missing:.2f}%")
+        missing_summary = df.isnull().sum()
+        missing_summary = missing_summary[missing_summary > 0].sort_values(ascending=False)
         
-        if 'columns_with_missing' in locals() and columns_with_missing:
-            st.write("Columns with Missing Values and Their Data Types:")
-            for col, dtype in columns_with_missing:
-                st.write(f"- {col}: {dtype}")
+        if not missing_summary.empty:
+            missing_percent = (missing_summary / df.shape[0]) * 100
+            summary_df = pd.DataFrame({
+                'Missing Count': missing_summary,
+                'Missing %': missing_percent.map(lambda x: f"{x:.2f}%"),
+                'Data Type': [df[col].dtype.name for col in missing_summary.index]
+            })
+
+            st.write(f"Total Missing Value Proportion: {(df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100:.2f}%")
+            st.dataframe(summary_df)
+        else:
+            st.success("🎉 No missing values found in your dataset.")
         
         # Handle Mixed Data Types
         st.header("3. Handle Mixed Data Types")

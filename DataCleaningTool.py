@@ -385,64 +385,176 @@ with right_col:
             st.success("Appropriate columns have been converted to categorical type!")
             st.dataframe(df.dtypes)
             
-        # Impute Missing Values (Step 1)
+        # Section 6: Impute Missing Values
         st.header("6. Impute Missing Values")
         
-        df = st.session_state.processed_df
-        if 'df_backup' not in st.session_state:
-            st.session_state.df_backup = None
         if 'impute_log' not in st.session_state:
             st.session_state.impute_log = []
+        if 'df_backup' not in st.session_state:
+            st.session_state.df_backup = None
         
-        missing_columns = df.columns[df.isnull().any()]
-        if not missing_columns.any():
-            st.info("🎉 No missing values found!")
-        else:
-            selected_column = st.selectbox("Select a column to impute", missing_columns)
-            col_data = df[selected_column]
-            dtype = col_data.dtype
+        df = st.session_state.processed_df
         
-            # Determine mode and methods
-            string_methods = ["Mode", "Fill with NA", "Fill with custom value", "Forward Fill (LOCF)", "Backward Fill (NOCB)"]
-            numeric_simple = string_methods + ["Mean", "Median"]
-            advanced_methods = ["KNN", "Regression", "MICE", "MissForest", "Interpolation", "EM", "Bayesian"]
-        
-            if dtype == object or dtype.name == 'category':
-                impute_mode = "String / Categorical"
-                available_methods = string_methods
-            elif np.issubdtype(dtype, np.number):
-                impute_mode = "Numeric"
-                available_methods = numeric_simple + advanced_methods
+        if df is not None:
+            missing_columns = df.columns[df.isnull().any()]
+            if len(missing_columns) == 0:
+                st.success("🎉 No missing values found in your dataset.")
             else:
-                impute_mode = "Unsupported"
-                available_methods = []
+                selected_column = st.selectbox("Select a column to impute", missing_columns)
         
-            st.write(f"📊 Column `{selected_column}` detected as: **{impute_mode}**")
+                col_dtype = df[selected_column].dtype
+                is_numeric = pd.api.types.is_numeric_dtype(col_dtype)
+                is_categorical = pd.api.types.is_object_dtype(col_dtype) or pd.api.types.is_categorical_dtype(col_dtype)
         
-            st.subheader("🟦 Simple Methods")
-            for method in string_methods:
-                disabled = method not in available_methods
-                with st.expander(f"{method} {'🚫' if disabled else ''}"):
-                    st.write(f"ℹ️ {method} is {'not available' if disabled else 'a simple method for categorical/numeric data.'}")
+                st.markdown(f"**Detected Column Type:** `{col_dtype}`")
         
-            if impute_mode == "Numeric":
-                st.subheader("🟨 Numeric-Specific Simple Methods")
-                for method in ["Mean", "Median"]:
-                    with st.expander(f"{method}"):
-                        st.write("ℹ️ Averages are quick ways to fill in missing values when data is roughly normal.")
-        
-                st.subheader("🟥 Advanced Imputation Methods")
-                for method in advanced_methods:
-                    with st.expander(f"{method}"):
-                        st.write("ℹ️ Advanced method (not yet implemented). Requires numerical data.")
-        
-            st.markdown("---")
-            if st.button("Undo Last Imputation"):
-                if st.session_state.df_backup is not None:
-                    st.session_state.processed_df = st.session_state.df_backup.copy()
-                    st.success("✅ Last imputation undone.")
+                # Mode selection
+                if is_categorical:
+                    impute_mode = "Categorical"
+                elif is_numeric:
+                    impute_mode = st.radio("Select imputation complexity level:", ["Simple", "Advanced"], horizontal=True)
                 else:
-                    st.warning("⚠️ No imputation has been done yet.")
+                    st.error("Unsupported data type for imputation.")
+                    impute_mode = None
+        
+                # Apply to all toggle
+                apply_all = st.checkbox("Apply to all columns with missing values using this method")
+        
+                methods = []
+                method_descriptions = {}
+        
+                # Shared across modes
+                method_descriptions.update({
+                    "Mode": "Replaces missing values with the most frequently occurring value in the column.",
+                    "Fill with NA": "Replaces missing values with a 'NA' placeholder.",
+                    "Fill with custom value": "Allows user to enter a specific value to fill missing cells.",
+                    "Forward Fill (LOCF)": "Fills missing values with the last valid observation above (good for time-ordered data).",
+                    "Backward Fill (NOCB)": "Fills missing values with the next valid observation below.",
+                })
+        
+                # Simple methods
+                if impute_mode == "Simple":
+                    methods = ["Mean", "Median"] + list(method_descriptions.keys())
+                    method_descriptions.update({
+                        "Mean": "Fills missing values with the average of the column.",
+                        "Median": "Fills missing values with the median value of the column.",
+                    })
+        
+                elif impute_mode == "Advanced":
+                    methods = [
+                        "KNN Imputer", "Linear Regression", "Iterative Imputer (MICE)",
+                        "MissForest (Random Forest)", "Interpolation", "Expectation Maximization (EM)", "Bayesian Imputation"
+                    ]
+                    method_descriptions.update({
+                        "KNN Imputer": "Uses similar rows to predict missing values based on proximity in feature space.",
+                        "Linear Regression": "Trains a regression model using complete rows to predict missing values.",
+                        "Iterative Imputer (MICE)": "Fills missing values iteratively, modeling each column as a function of the others.",
+                        "MissForest (Random Forest)": "Non-linear imputation using random forests (via `missingpy`).",
+                        "Interpolation": "Estimates missing values from trends in nearby values (linear/spline).",
+                        "Expectation Maximization (EM)": "Statistical method that maximizes likelihood to estimate missing data.",
+                        "Bayesian Imputation": "Samples probable values from a posterior distribution (via `pymc`)."
+                    })
+        
+                elif impute_mode == "Categorical":
+                    methods = list(method_descriptions.keys())
+        
+                selected_method = st.selectbox("Select an imputation method", methods)
+        
+                with st.expander("ℹ️ About this method"):
+                    st.markdown(method_descriptions.get(selected_method, "No description available."))
+        
+                if selected_method == "Fill with custom value":
+                    custom_value = st.text_input("Enter value to fill missing cells with:")
+        
+                if st.button("Apply Imputation"):
+                    st.session_state.df_backup = df.copy()
+        
+                    def apply_imputation(col):
+                        nonlocal df
+        
+                        if selected_method == "Mean":
+                            df[col] = df[col].fillna(df[col].mean())
+                        elif selected_method == "Median":
+                            df[col] = df[col].fillna(df[col].median())
+                        elif selected_method == "Mode":
+                            df[col] = df[col].fillna(df[col].mode().iloc[0])
+                        elif selected_method == "Fill with NA":
+                            df[col] = df[col].fillna("NA")
+                        elif selected_method == "Fill with custom value":
+                            df[col] = df[col].fillna(custom_value)
+                        elif selected_method == "Forward Fill (LOCF)":
+                            df[col] = df[col].fillna(method="ffill")
+                        elif selected_method == "Backward Fill (NOCB)":
+                            df[col] = df[col].fillna(method="bfill")
+                        elif selected_method == "KNN Imputer":
+                            from sklearn.impute import KNNImputer
+                            imputer = KNNImputer(n_neighbors=3)
+                            df[df.columns] = imputer.fit_transform(df)
+                        elif selected_method == "Linear Regression":
+                            from sklearn.linear_model import LinearRegression
+                            complete = df[df[col].notnull()]
+                            missing = df[df[col].isnull()]
+                            X_train = complete.drop(columns=[col]).select_dtypes(include=[np.number])
+                            y_train = complete[col]
+                            X_missing = missing.drop(columns=[col]).select_dtypes(include=[np.number])
+                            if len(X_train) > 0 and len(X_missing) > 0:
+                                model = LinearRegression().fit(X_train, y_train)
+                                df.loc[df[col].isnull(), col] = model.predict(X_missing)
+                        elif selected_method == "Iterative Imputer (MICE)":
+                            from sklearn.experimental import enable_iterative_imputer
+                            from sklearn.impute import IterativeImputer
+                            imp = IterativeImputer(random_state=0)
+                            df[df.columns] = imp.fit_transform(df)
+                        elif selected_method == "Interpolation":
+                            df[col] = df[col].interpolate(method='linear')
+                        elif selected_method == "MissForest (Random Forest)":
+                            from missingpy import MissForest
+                            mf = MissForest()
+                            df[df.columns] = mf.fit_transform(df)
+                        elif selected_method == "Expectation Maximization (EM)":
+                            st.warning("⚠️ EM is not implemented yet. Please install `fancyimpute` or skip.")
+                        elif selected_method == "Bayesian Imputation":
+                            st.warning("⚠️ Bayesian imputation is complex and requires PyMC. Not implemented in this version.")
+                        else:
+                            st.error("❌ Unsupported imputation method.")
+        
+                    if apply_all:
+                        applicable_columns = [col for col in missing_columns if df[col].dtype == df[selected_column].dtype]
+                        for col in applicable_columns:
+                            apply_imputation(col)
+                            st.session_state.impute_log.append((col, selected_method))
+                        st.success(f"✅ Applied {selected_method} to all {len(applicable_columns)} applicable columns.")
+                    else:
+                        apply_imputation(selected_column)
+                        st.session_state.impute_log.append((selected_column, selected_method))
+                        st.success(f"✅ Applied {selected_method} to '{selected_column}'.")
+        
+                    st.session_state.processed_df = df
+                    st.subheader("Updated Data Preview")
+                    st.dataframe(df.head())
+        
+                if st.button("Undo Last Imputation"):
+                    if st.session_state.df_backup is not None:
+                        st.session_state.processed_df = st.session_state.df_backup.copy()
+                        df = st.session_state.processed_df
+                        if st.session_state.impute_log:
+                            undone = st.session_state.impute_log.pop()
+                            st.success(f"🔄 Undid imputation: {undone[1]} on '{undone[0]}'")
+                        else:
+                            st.info("ℹ️ No previous imputation to undo.")
+                    else:
+                        st.warning("⚠️ No backup available to undo.")
+        
+                # Optional: Show Imputation Log
+                with st.expander("🧾 Imputation Log"):
+                    if st.session_state.impute_log:
+                        for idx, (col, method) in enumerate(reversed(st.session_state.impute_log[-10:]), 1):
+                            st.write(f"{idx}. Column: **{col}**, Method: **{method}**")
+                    else:
+                        st.write("No imputations logged yet.")
+        else:
+            st.info("Please upload a CSV file to begin.")
+
             
         # Download Processed Data
         st.header("7. Download Processed Data")

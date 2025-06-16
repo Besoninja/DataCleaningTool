@@ -63,54 +63,70 @@ def generate_enhanced_information_table(dataframe):
 
 def determine_column_data_types(dataframe, type_threshold=0.95):
     """
-    Determine the predominant data type of each column based on a threshold.
-
-    Parameters:
-        dataframe (pd.DataFrame): The dataset to classify.
-        type_threshold (float): The proportion threshold for classifying a column as numeric or string.
+    Determine predominant data type and metadata for each column.
 
     Returns:
-        dict: {column_name: 'numeric'|'string'|'mixed'|'empty'}
-
-    Example usage:
-        column_types = determine_column_data_types(df, 0.95)
+        dict: {
+            column_name: {
+                'inferred_type': 'numeric'|'string'|'mixed'|'empty',
+                'original_dtype': 'object'|'float64'|...,
+                'numeric_ratio': float,
+                'string_ratio': float,
+                'missing_pct': float
+            }
+        }
     """
-    column_data_types = {}
-    
+    results = {}
+
     for column in dataframe.columns:
-        string_count = 0
+        col_data = dataframe[column].dropna()
+        total = len(col_data)
+
+        if total == 0:
+            results[column] = {
+                'inferred_type': 'empty',
+                'original_dtype': dataframe[column].dtype.name,
+                'numeric_ratio': 0,
+                'string_ratio': 0,
+                'missing_pct': 100
+            }
+            continue
+
         numeric_count = 0
-        
-        for entry in dataframe[column]:
-            if pd.isna(entry):
-                continue
-            if isinstance(entry, str):
-                # Check if the string can be parsed as a number
+        string_count = 0
+
+        for val in col_data:
+            if isinstance(val, str):
                 try:
-                    float(entry)
+                    float(val)
                     numeric_count += 1
                 except ValueError:
                     string_count += 1
-            elif isinstance(entry, (int, float, np.number)):
+            elif isinstance(val, (int, float, np.number)):
                 numeric_count += 1
-        
-        total_entries = len(dataframe[column].dropna())
-        
-        if total_entries == 0:
-            column_data_types[column] = 'empty'
-            continue
-            
-        numeric_ratio = numeric_count / total_entries if total_entries > 0 else 0
-        string_ratio = string_count / total_entries if total_entries > 0 else 0
-        
+            else:
+                string_count += 1  # fallback to string-like
+
+        numeric_ratio = numeric_count / total
+        string_ratio = string_count / total
+        missing_pct = dataframe[column].isnull().mean() * 100
+
         if numeric_ratio > type_threshold:
-            column_data_types[column] = 'numeric'
+            inferred_type = 'numeric'
         elif string_ratio > type_threshold:
-            column_data_types[column] = 'string'
+            inferred_type = 'string'
         else:
-            column_data_types[column] = 'mixed'
-            
-    return column_data_types
+            inferred_type = 'mixed'
+
+        results[column] = {
+            'inferred_type': inferred_type,
+            'original_dtype': dataframe[column].dtype.name,
+            'numeric_ratio': numeric_ratio,
+            'string_ratio': string_ratio,
+            'missing_pct': missing_pct
+        }
+
+    return results
 
 def identify_incorrect_entries(dataframe):
     """
@@ -301,6 +317,28 @@ with right_col:
                 step=0.01,
                 key="type_threshold"
             )
+        
+        # Use updated logic to analyze data types
+        type_summary = determine_column_data_types(df, type_threshold)
+        
+        # Show user which object columns are inferred to be numeric
+        to_convert = []
+        for col, info in type_summary.items():
+            if info['original_dtype'] == 'object' and info['inferred_type'] == 'numeric':
+                to_convert.append({
+                    "Column": col,
+                    "Original Dtype": info['original_dtype'],
+                    "Inferred Type": info['inferred_type'],
+                    "Numeric %": f"{info['numeric_ratio']*100:.2f}%",
+                    "Missing %": f"{info['missing_pct']:.2f}%"
+                })
+        
+        if to_convert:
+            st.warning("⚠️ These object columns look numeric and will be converted automatically:")
+            st.dataframe(pd.DataFrame(to_convert))
+        else:
+            st.success("🎉 No object columns detected as numeric candidates.")
+
 
         # Preview mixed-type columns BEFORE conversion
         type_info = determine_column_data_types(df, type_threshold)

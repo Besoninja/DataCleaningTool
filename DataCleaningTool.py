@@ -290,6 +290,7 @@ with right_col:
         # Handle Mixed Data Types
         st.header("3. Handle Mixed Data Types")
         st.markdown("Convert columns to their predominant data type based on a threshold.")
+        
         slider_col, _ = st.columns([0.3, 0.7])
         with slider_col:
             type_threshold = st.slider(
@@ -300,6 +301,30 @@ with right_col:
                 step=0.01,
                 key="type_threshold"
             )
+
+        # Preview mixed-type columns BEFORE conversion
+        type_info = determine_column_data_types(df, type_threshold)
+        mixed_cols = {k: v for k, v in type_info.items() if v == 'mixed'}
+        
+        if mixed_cols:
+            st.subheader("🧪 Detected Mixed-Type Columns")
+            preview = []
+        
+            incorrect_analysis = identify_incorrect_entries(df)
+        
+            for col in mixed_cols:
+                details = incorrect_analysis.get(col, {})
+                preview.append({
+                    "Column": col,
+                    "String Count": details.get('string_count', 0),
+                    "Numeric Count": details.get('numeric_count', 0),
+                    "String %": f"{details.get('string_ratio', 0):.2f}%",
+                    "Numeric %": f"{details.get('numeric_ratio', 0):.2f}%",
+                })
+        
+            st.dataframe(pd.DataFrame(preview))
+        else:
+            st.success("🎉 No mixed-type columns detected.")
 
         if st.button("Convert Mixed Data Types"):
             cleaned_df, conversion_report = convert_mixed_data_types(df, type_threshold)

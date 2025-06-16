@@ -478,7 +478,6 @@ with right_col:
                     st.session_state.df_backup = df.copy()
         
                     def apply_imputation(col):
-                        nonlocal df
         
                         if selected_method == "Mean":
                             df[col] = df[col].fillna(df[col].mean())

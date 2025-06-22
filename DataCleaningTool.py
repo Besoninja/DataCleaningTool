@@ -13,6 +13,10 @@ if 'incorrect_entries_analysis' not in st.session_state:
 if 'processed_columns' not in st.session_state:
     st.session_state.processed_columns = set()
 
+#####################################################################################################################################
+### Functions ###
+#####################################################################################################################################
+
 def generate_enhanced_information_table(dataframe):
     """
     Generate an enhanced overview table for a given DataFrame including:
@@ -250,6 +254,10 @@ def convert_to_categorical_types(dataframe, cat_threshold=0.1):
         if should_treat_as_categorical(dataframe_converted[col], cat_threshold):
             dataframe_converted[col] = pd.Categorical(dataframe_converted[col])
     return dataframe_converted
+
+#####################################################################################################################################
+### Code ###
+#####################################################################################################################################
 
 # Layout: two columns
 left_col, right_col = st.columns([1, 4], gap="medium")

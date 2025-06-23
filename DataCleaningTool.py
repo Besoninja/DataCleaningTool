@@ -290,7 +290,7 @@ with right_col:
         st.header("2. Data Overview")
         st.write(f"Dataset Shape: {df.shape[0]} rows and {df.shape[1]} columns")
         
-        st.subheader("First Few Rows")
+        st.subheader("First Five Rows")
         st.dataframe(df.head())
 
         # Missing Values Summary

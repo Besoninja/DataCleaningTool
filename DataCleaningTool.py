@@ -502,11 +502,34 @@ with right_col:
 #####################################################################################################################################
         # SECTION 6: Detect and Handle Outliers
         st.header("6. Detect and Handle Outliers")
-        st.markdown("""
-        Flag and optionally remove extreme numeric values that fall far outside the typical range.
-        Uses the **IQR method** (Interquartile Range) by default:
-        - Outliers are values < Q1 - 1.5×IQR or > Q3 + 1.5×IQR
-        """)
+        with st.expander("ℹ️ What are outliers and how does this work?"):
+            st.markdown("""
+            ### What are outliers?
+            Outliers are data points that are unusually high or low compared to the rest of your data. 
+            For example, if most salaries in your dataset are between $30,000-$80,000, but you have one entry 
+            of $500,000, that would be an outlier.
+            
+            ### How does this work?
+            This tool uses a statistical method called the **IQR (Interquartile Range) method** to find outliers:
+            
+            1. **Q1 (25th percentile)**: The value below which 25% of your data falls
+            2. **Q3 (75th percentile)**: The value below which 75% of your data falls  
+            3. **IQR**: The difference between Q3 and Q1 (captures the "middle 50%" of your data)
+            
+            **Outliers are defined as:**
+            - Values below: Q1 - (multiplier × IQR)
+            - Values above: Q3 + (multiplier × IQR)
+            
+            ### Instructions:
+            1. **Adjust the multiplier** below (1.5 is standard - lower values find more outliers, higher values find fewer)
+            2. **Click "Run Outlier Detection"** to scan your numeric columns
+            3. **For each column with outliers, choose:**
+               - **Replace with NaN**: Keeps the rows but marks outlier values as missing
+               - **Drop rows**: Completely removes rows containing outliers
+               - **Skip**: Leave the outliers as-is for now
+            
+            💡 **Tip**: Start with the default multiplier of 1.5. You can always run this multiple times with different settings.
+            """)
         
         iqr_threshold = st.slider(
             "IQR Multiplier (default = 1.5)", min_value=1.0, max_value=5.0, value=1.5, step=0.1

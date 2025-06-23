@@ -314,98 +314,103 @@ with right_col:
             st.success("🎉 No missing values found in your dataset.")
         
 #####################################################################################################################################
-        # SECTION 3.1: Detect Mixed-Type Columns
-        st.header("3.1. Detect Mixed-Type Columns")
+        # SECTION 3: Identify and Clean Mixed-Type Columns
+        st.header("3. Identify and Clean Mixed-Type Columns")
         st.markdown("""
-        This step identifies columns that contain both numeric and string values (e.g. `"12"`, `"hello"`, `3.14`).
+        This step scans for columns that contain a mix of numeric and string entries, which can break downstream analysis.
+        
+        If over 75% of the entries are one type (numeric or string), we'll treat that as the **dominant type** and give you the option to remove the rogue entries (`NaN` will be inserted).
+        
+        If the column is ambiguous (e.g., 50/50), you'll be asked to manually choose how it should be treated.
         """)
         
-        type_threshold = st.slider(
-            "Threshold for Dominant Type",
-            min_value=0.5, max_value=1.0, value=0.95, step=0.01,
-            help="If 95% of a column is numeric, we classify it as numeric."
+        dominance_threshold = st.slider(
+            "Dominant Type Threshold",
+            min_value=0.5, max_value=1.0, value=0.75, step=0.01,
+            help="If more than this % of values are numeric or string, we'll classify that as the dominant type."
         )
         
-        if st.button("🔍 Detect Mixed-Type Columns"):
-            st.session_state.type_info = determine_column_data_types(df, type_threshold)
-            st.session_state.mixed_type_cols = {
-                k: v for k, v in st.session_state.type_info.items() if v['inferred_type'] == 'mixed'
-            }
+        def detect_mixed_columns(df, threshold=0.75):
+            mixed_cols = {}
         
-        if 'mixed_type_cols' in st.session_state:
-            mixed_type_cols = st.session_state.mixed_type_cols
-            if mixed_type_cols:
-                st.subheader("🧪 Detected Mixed-Type Columns")
-                for col, stats in mixed_type_cols.items():
-                    st.markdown(f"**{col}** — `{stats['original_dtype']}`")
-                    st.write(f"🔢 **String entries:** {stats['string_ratio']:.2f}% | 🔣 **Numeric entries:** {stats['numeric_ratio']:.2f}%")
-            else:
-                st.success("🎉 No mixed-type columns detected.")
-
-        # SECTION 3.2: Fix Mixed-Type Columns
-        st.header("3.2. Fix Mixed-Type Columns")
-        if 'mixed_type_cols' in st.session_state and st.session_state.mixed_type_cols:
-            st.markdown("""
-        Choose how to fix each mixed-type column:
-        - **Convert to Dominant Type**: Makes the entire column numeric or string.
-        - **Replace Rogue Entries**: Replaces inconsistent values with `NaN` without changing the column type.
-            """)
-        
-            if 'fixed_mixed_cols' not in st.session_state:
-                st.session_state.fixed_mixed_cols = set()
-        
-            for col, stats in st.session_state.mixed_type_cols.items():
-                if col in st.session_state.fixed_mixed_cols:
+            for col in df.columns:
+                if df[col].dtype != 'object':
                     continue
         
-                st.markdown(f"**{col}** — `{stats['original_dtype']}`")
-                col1, col2, col3 = st.columns(3)
+                values = df[col].dropna()
+                total = len(values)
+                if total == 0:
+                    continue
         
-                with col1:
-                    if st.button(f"Convert '{col}'", key=f"convert_{col}"):
-                        if stats['numeric_ratio'] > stats['string_ratio']:
-                            df[col] = pd.to_numeric(df[col], errors='coerce')
-                        else:
-                            df[col] = df[col].astype(str)
-                        st.session_state.fixed_mixed_cols.add(col)
-                        st.success(f"✅ Converted '{col}' to dominant type.")
+                num_count = 0
+                str_count = 0
         
-                with col2:
-                    if st.button(f"NaN Rogue '{col}'", key=f"nan_{col}"):
-                        rogue_indices = []
-                        for idx, val in enumerate(df[col]):
-                            if pd.isna(val):
-                                continue
-                            try:
-                                float(val)
-                                if stats['string_ratio'] > stats['numeric_ratio']:
-                                    rogue_indices.append(idx)
-                            except:
-                                if stats['numeric_ratio'] > stats['string_ratio']:
-                                    rogue_indices.append(idx)
-                        df.loc[rogue_indices, col] = np.nan
-                        st.session_state.fixed_mixed_cols.add(col)
-                        st.success(f"✅ Replaced rogue entries in '{col}' with NaN.")
+                for val in values:
+                    try:
+                        float(val)
+                        num_count += 1
+                    except:
+                        str_count += 1
         
-                with col3:
-                    if st.button(f"Skip '{col}'", key=f"skip_{col}"):
-                        st.session_state.fixed_mixed_cols.add(col)
-                        st.info(f"⏭️ Skipped fixing '{col}'")
+                numeric_ratio = num_count / total
+                string_ratio = str_count / total
         
-            unfixed = [col for col in st.session_state.mixed_type_cols if col not in st.session_state.fixed_mixed_cols]
-            if unfixed:
-                if st.button("⚙️ Bulk Convert All"):
-                    for col in unfixed:
-                        stats = st.session_state.type_info[col]
-                        if stats['numeric_ratio'] > stats['string_ratio']:
-                            df[col] = pd.to_numeric(df[col], errors='coerce')
-                        else:
-                            df[col] = df[col].astype(str)
-                        st.session_state.fixed_mixed_cols.add(col)
-                    st.success("✅ All mixed-type columns converted to dominant types.")
+                if 0 < numeric_ratio < 1:
+                    dominant = None
+                    if numeric_ratio >= threshold:
+                        dominant = 'numeric'
+                    elif string_ratio >= threshold:
+                        dominant = 'string'
         
-            st.session_state.processed_df = df
-
+                    mixed_cols[col] = {
+                        'numeric_ratio': numeric_ratio * 100,
+                        'string_ratio': string_ratio * 100,
+                        'dominant': dominant
+                    }
+        
+            return mixed_cols
+        
+        def clean_rogues(df, col, dominant):
+            for idx, val in df[col].items():
+                if pd.isna(val):
+                    continue
+                try:
+                    float(val)
+                    is_numeric = True
+                except:
+                    is_numeric = False
+        
+                if dominant == 'numeric' and not is_numeric:
+                    df.at[idx, col] = np.nan
+                elif dominant == 'string' and is_numeric:
+                    df.at[idx, col] = np.nan
+            return df
+        
+        if st.button("🔍 Scan for Mixed-Type Columns"):
+            st.session_state.mixed_cols = detect_mixed_columns(df, dominance_threshold)
+        
+        if 'mixed_cols' in st.session_state:
+            mixed_cols = st.session_state.mixed_cols
+            if mixed_cols:
+                st.subheader("🧪 Mixed-Type Columns Found")
+                for col, info in mixed_cols.items():
+                    st.markdown(f"**{col}** — {info['numeric_ratio']:.2f}% numeric | {info['string_ratio']:.2f}% string")
+        
+                    chosen_type = info['dominant']
+                    if not chosen_type:
+                        chosen_type = st.radio(
+                            f"❓ Ambiguous column '{col}' — choose dominant type:",
+                            options=['numeric', 'string'],
+                            key=f"choose_{col}"
+                        )
+        
+                    if st.button(f"🧹 Remove rogue entries in '{col}'", key=f"clean_{col}"):
+                        df = clean_rogues(df, col, chosen_type)
+                        st.success(f"✅ Rogue entries removed from '{col}' (kept {chosen_type} values)")
+        
+                st.session_state.processed_df = df
+            else:
+                st.success("🎉 No mixed-type columns detected.")
 
 
 #####################################################################################################################################

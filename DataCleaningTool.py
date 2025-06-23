@@ -275,7 +275,8 @@ with left_col:
         st.write("No data loaded yet.")
 
 with right_col:
-    # File Upload Section
+#####################################################################################################################################
+    # SECTION 1: File Upload Section
     st.header("1. Upload Data")
     uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
@@ -285,8 +286,9 @@ with right_col:
             st.session_state.processed_df = pd.read_csv(uploaded_file)
         df = st.session_state.processed_df
         st.success("File successfully uploaded!")
-
-        # Data Overview
+        
+#####################################################################################################################################
+        # SECTION 2: Data Overview
         st.header("2. Data Overview")
         st.write(f"Dataset Shape: {df.shape[0]} rows and {df.shape[1]} columns")
         
@@ -311,39 +313,51 @@ with right_col:
         else:
             st.success("🎉 No missing values found in your dataset.")
         
-        
+#####################################################################################################################################
         # SECTION 3: Detect and Fix Mixed-Type Columns
         st.header("3. Detect and Fix Mixed-Type Columns")
         st.markdown("""
-        This step identifies columns with mixed types (e.g., strings in numeric columns) and lets you fix them by:
-        - Converting the whole column based on dominant type.
-        - Replacing rogue entries with NaN.
-        - Skipping columns you want to leave unchanged.
+        This step identifies columns that contain both numeric and string values (e.g. `"12"`, `"hello"`, `3.14` in the same column).
+        Mixed-type columns can cause problems in analysis and machine learning workflows.
+        
+        You can choose to:
+        - Convert the **entire column** to the dominant type (e.g., numeric or string).
+        - Replace only the **rogue entries** with `NaN` and leave the rest untouched.
         """)
         
-        # Threshold for dominant type
+        # Threshold explanation
+        st.markdown("#### Threshold for Dominant Type")
         type_threshold = st.slider(
-            "Set the minimum percentage required to determine a dominant type (default = 95%)",
-            min_value=0.5, max_value=1.0, value=0.95, step=0.01
+            "If more than this % of a column is numeric or string, that will be used as the 'dominant' type.",
+            min_value=0.5, max_value=1.0, value=0.95, step=0.01,
+            help="Example: If 95% of a column is numeric, we'll classify it as a numeric column."
         )
         
-        # Add a button to manually run the detection
-        if st.button("Detect Mixed-Type Columns"):
+        # Button to trigger detection
+        if st.button("🔍 Detect Mixed-Type Columns"):
             st.session_state.type_info = determine_column_data_types(df, type_threshold)
             st.session_state.mixed_type_cols = {
                 k: v for k, v in st.session_state.type_info.items() if v['inferred_type'] == 'mixed'
             }
         
-        # Only show analysis results if detection has been run
+        # Show detection results and fix options
         if 'mixed_type_cols' in st.session_state:
             mixed_type_cols = st.session_state.mixed_type_cols
             type_info = st.session_state.type_info
         
             if mixed_type_cols:
-                st.subheader("🧪 Mixed-Type Columns Detected")
+                st.subheader("🧪 Detected Mixed-Type Columns")
+        
+                # Create fix log
+                if 'fixed_mixed_cols' not in st.session_state:
+                    st.session_state.fixed_mixed_cols = set()
+        
                 for col, stats in mixed_type_cols.items():
-                    st.markdown(f"**{col}** — {stats['original_dtype']}")
-                    st.write(f"String entries: {stats['string_ratio']:.2f}% | Numeric entries: {stats['numeric_ratio']:.2f}%")
+                    if col in st.session_state.fixed_mixed_cols:
+                        continue
+        
+                    st.markdown(f"**{col}** — `{stats['original_dtype']}`")
+                    st.write(f"🔢 **String entries:** {stats['string_ratio']:.2f}% | 🔣 **Numeric entries:** {stats['numeric_ratio']:.2f}%")
         
                     col1, col2, col3 = st.columns(3)
                     with col1:
@@ -352,9 +366,11 @@ with right_col:
                                 df[col] = pd.to_numeric(df[col], errors='coerce')
                             else:
                                 df[col] = df[col].astype(str)
-                            st.success(f"Converted '{col}' to its dominant type.")
+                            st.session_state.fixed_mixed_cols.add(col)
+                            st.success(f"✅ Converted '{col}' to its dominant type.")
+        
                     with col2:
-                        if st.button(f"Remove rogue entries in '{col}'", key=f"nan_{col}"):
+                        if st.button(f"Replace rogue entries in '{col}'", key=f"nan_{col}"):
                             rogue_indices = []
                             for idx, val in enumerate(df[col]):
                                 if pd.isna(val):
@@ -367,16 +383,34 @@ with right_col:
                                     if stats['numeric_ratio'] > stats['string_ratio']:
                                         rogue_indices.append(idx)
                             df.loc[rogue_indices, col] = np.nan
-                            st.success(f"Replaced rogue entries with NaN in '{col}'")
+                            st.session_state.fixed_mixed_cols.add(col)
+                            st.success(f"✅ Replaced rogue entries with NaN in '{col}'")
+        
                     with col3:
                         if st.button(f"Skip '{col}'", key=f"skip_{col}"):
-                            st.info(f"Skipped column '{col}'.")
+                            st.session_state.fixed_mixed_cols.add(col)
+                            st.info(f"⏭️ Skipped fixing '{col}'")
+        
+                # Bulk fix option for remaining columns
+                unfixed = [col for col in mixed_type_cols if col not in st.session_state.fixed_mixed_cols]
+                if unfixed:
+                    if st.button("⚙️ Fix All Remaining Columns (Convert to Dominant Type)"):
+                        for col in unfixed:
+                            stats = type_info[col]
+                            if stats['numeric_ratio'] > stats['string_ratio']:
+                                df[col] = pd.to_numeric(df[col], errors='coerce')
+                            else:
+                                df[col] = df[col].astype(str)
+                            st.session_state.fixed_mixed_cols.add(col)
+                        st.success("✅ All mixed-type columns have been converted to their dominant types.")
         
                 st.session_state.processed_df = df
+        
             else:
                 st.success("🎉 No mixed-type columns detected.")
 
 
+#####################################################################################################################################
         # SECTION 4: Standardize Column Data Types
         st.header("4. Standardize Column Data Types")
         st.markdown("""
@@ -419,6 +453,7 @@ with right_col:
         else:
             st.info("No data type conversions were needed.")
 
+#####################################################################################################################################
         # SECTION 5: Optimize for Analysis
         st.header("5. Optimize for Analysis")
         st.markdown("""
@@ -445,7 +480,7 @@ with right_col:
             st.session_state.processed_df = df
             st.success("✅ Optimization complete!")
 
-
+#####################################################################################################################################
         # SECTION 6: Detect and Handle Outliers
         st.header("6. Detect and Handle Outliers")
         st.markdown("""
@@ -506,7 +541,7 @@ with right_col:
             else:
                 st.success("🎉 No outliers detected using the current IQR threshold.")
 
-
+#####################################################################################################################################
         # SECTION 7: Clean and Normalize Text Data
         st.header("7. Clean and Normalize Text Data")
         st.markdown("""
@@ -565,7 +600,8 @@ with right_col:
                 st.dataframe(df[cleaned_cols].head())
             else:
                 st.info("No changes were made during text cleanup.")
-
+                
+#####################################################################################################################################
         # SECTION 8: Clean Column Names
         st.header("8. Clean Column Names")
         st.markdown("""
@@ -612,7 +648,7 @@ with right_col:
             st.dataframe(df.head())
 
 
-
+#####################################################################################################################################
         # SECTION 9: Impute Missing Values
         st.header("9. Impute Missing Values")
         
@@ -788,7 +824,7 @@ with right_col:
             st.info("Please upload a CSV file to begin.")
 
 
-            
+#####################################################################################################################################            
         # SECTION 10: Download Processed Data
         st.header("10. Download Processed Data")
         

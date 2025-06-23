@@ -446,8 +446,69 @@ with right_col:
             st.success("✅ Optimization complete!")
 
 
-        # SECTION 6: Clean and Normalize Text Data
-        st.header("6. Clean and Normalize Text Data")
+        # SECTION 6: Detect and Handle Outliers
+        st.header("6. Detect and Handle Outliers")
+        st.markdown("""
+        Flag and optionally remove extreme numeric values that fall far outside the typical range.
+        Uses the **IQR method** (Interquartile Range) by default:
+        - Outliers are values < Q1 - 1.5×IQR or > Q3 + 1.5×IQR
+        """)
+        
+        iqr_threshold = st.slider(
+            "IQR Multiplier (default = 1.5)", min_value=1.0, max_value=5.0, value=1.5, step=0.1
+        )
+        
+        if st.button("Run Outlier Detection"):
+            df = st.session_state.processed_df.copy()
+            outlier_report = {}
+            
+            for col in df.select_dtypes(include=[np.number]).columns:
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - iqr_threshold * IQR
+                upper_bound = Q3 + iqr_threshold * IQR
+                mask = (df[col] < lower_bound) | (df[col] > upper_bound)
+                count = mask.sum()
+                if count > 0:
+                    outlier_report[col] = {
+                        "lower": lower_bound,
+                        "upper": upper_bound,
+                        "count": count,
+                        "percent": 100 * count / len(df),
+                        "mask": mask
+                    }
+        
+            if outlier_report:
+                st.success(f"✅ Found {len(outlier_report)} columns with outliers.")
+                for col, stats in outlier_report.items():
+                    st.markdown(f"**Column: `{col}`**")
+                    st.write(f"- Outliers: {stats['count']} ({stats['percent']:.2f}%)")
+                    st.write(f"- Lower bound: {stats['lower']:.2f}")
+                    st.write(f"- Upper bound: {stats['upper']:.2f}")
+                    c1, c2, c3 = st.columns(3)
+        
+                    with c1:
+                        if st.button(f"Replace outliers in '{col}' with NaN", key=f"nan_{col}"):
+                            df.loc[stats["mask"], col] = np.nan
+                            st.session_state.processed_df = df
+                            st.success(f"✅ Replaced outliers in '{col}' with NaN")
+        
+                    with c2:
+                        if st.button(f"Drop rows with outliers in '{col}'", key=f"drop_{col}"):
+                            df = df[~stats["mask"]]
+                            st.session_state.processed_df = df
+                            st.success(f"🗑️ Dropped {stats['count']} rows with outliers in '{col}'")
+        
+                    with c3:
+                        if st.button(f"Skip column '{col}'", key=f"skip_{col}"):
+                            st.info(f"⏭️ Skipped handling outliers in '{col}'")
+            else:
+                st.success("🎉 No outliers detected using the current IQR threshold.")
+
+
+        # SECTION 7: Clean and Normalize Text Data
+        st.header("7. Clean and Normalize Text Data")
         st.markdown("""
         Clean up string contents to reduce noise and standardize formatting:
         - Strip leading/trailing spaces
@@ -505,8 +566,8 @@ with right_col:
             else:
                 st.info("No changes were made during text cleanup.")
 
-        # SECTION 7: Clean Column Names
-        st.header("7. Clean Column Names")
+        # SECTION 8: Clean Column Names
+        st.header("8. Clean Column Names")
         st.markdown("""
         Fix inconsistent column naming:
         - Remove leading/trailing whitespace
@@ -552,8 +613,8 @@ with right_col:
 
 
 
-        # SECTION 8: Impute Missing Values
-        st.header("8. Impute Missing Values")
+        # SECTION 9: Impute Missing Values
+        st.header("9. Impute Missing Values")
         
         if 'impute_log' not in st.session_state:
             st.session_state.impute_log = []
@@ -728,8 +789,8 @@ with right_col:
 
 
             
-        # SECTION 9: Download Processed Data
-        st.header("9. Download Processed Data")
+        # SECTION 10: Download Processed Data
+        st.header("10. Download Processed Data")
         
         df = st.session_state.processed_df
         

@@ -3,3 +3,7 @@ pandas
 numpy
 matplotlib
 seaborn
+scikit-learn
+openpyxl
+xlrd
+missingpy

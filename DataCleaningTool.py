@@ -563,20 +563,36 @@ with right_col:
                     st.write(f"- Outliers: {stats['count']} ({stats['percent']:.2f}%)")
                     st.write(f"- Lower bound: {stats['lower']:.2f}")
                     st.write(f"- Upper bound: {stats['upper']:.2f}")
+                    
+                    # Show outlier rows
+                    outlier_rows = df[stats["mask"]]
+                    if len(outlier_rows) > 0:
+                        st.markdown(f"**Sample outlier rows for `{col}`:**")
+                        # Display up to 5 rows with scrolling if more exist
+                        st.dataframe(
+                            outlier_rows, 
+                            height=min(200, len(outlier_rows) * 35 + 38),  # Dynamic height based on rows
+                            use_container_width=True
+                        )
+                        if len(outlier_rows) > 5:
+                            st.caption(f"Showing all {len(outlier_rows)} outlier rows. Scroll within the table to see more.")
+                        else:
+                            st.caption(f"Showing all {len(outlier_rows)} outlier rows.")
+                    
                     c1, c2, c3 = st.columns(3)
-        
+            
                     with c1:
                         if st.button(f"Replace outliers in '{col}' with NaN", key=f"nan_{col}"):
                             df.loc[stats["mask"], col] = np.nan
                             st.session_state.processed_df = df
                             st.success(f"✅ Replaced outliers in '{col}' with NaN")
-        
+            
                     with c2:
                         if st.button(f"Drop rows with outliers in '{col}'", key=f"drop_{col}"):
                             df = df[~stats["mask"]]
                             st.session_state.processed_df = df
                             st.success(f"🗑️ Dropped {stats['count']} rows with outliers in '{col}'")
-        
+            
                     with c3:
                         if st.button(f"Skip column '{col}'", key=f"skip_{col}"):
                             st.info(f"⏭️ Skipped handling outliers in '{col}'")

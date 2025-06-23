@@ -2,14 +2,21 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import openpyxl
-from sklearn.impute import KNNImputer, IterativeImputer
+from sklearn.impute import KNNImputer
 from sklearn.linear_model import LinearRegression
-from sklearn.experimental import enable_iterative_imputer
+
+# Handle IterativeImputer separately since it's experimental
+try:
+    from sklearn.experimental import enable_iterative_imputer
+    from sklearn.impute import IterativeImputer
+except ImportError:
+    IterativeImputer = None
+
 # For MissForest
 try:
     from missingpy import MissForest
 except ImportError:
-    MissForest = None  # Handle gracefully if not installed
+    MissForest = None
 
 # Set the page configuration at the very start
 st.set_page_config(page_title="Data Cleaning Tool", layout="wide")
@@ -780,10 +787,11 @@ with right_col:
                                     model = LinearRegression().fit(X_train, y_train)
                                     df.loc[df[col].isnull(), col] = model.predict(X_missing)
                             elif selected_method == "Iterative Imputer (MICE)":
-                                from sklearn.experimental import enable_iterative_imputer
-                                from sklearn.impute import IterativeImputer
-                                imp = IterativeImputer(random_state=0)
-                                df[df.columns] = imp.fit_transform(df)
+                                if IterativeImputer is None:
+                                    st.error("❌ IterativeImputer not available in this sklearn version.")
+                                else:
+                                    imp = IterativeImputer(random_state=0)
+                                    df[df.columns] = imp.fit_transform(df)
                             elif selected_method == "Interpolation":
                                 df[col] = df[col].interpolate(method='linear')
                             elif selected_method == "MissForest (Random Forest)":

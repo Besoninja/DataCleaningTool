@@ -311,158 +311,128 @@ with right_col:
         else:
             st.success("🎉 No missing values found in your dataset.")
         
-        # Handle Mixed Data Types
-        st.header("3. Handle Mixed Data Types")
-        st.markdown("Convert columns to their predominant data type based on a threshold.")
         
-        slider_col, _ = st.columns([0.3, 0.7])
-        with slider_col:
-            type_threshold = st.slider(
-                "Data Type Threshold (Default 95%)",
-                min_value=0.50, 
-                max_value=1.00, 
-                value=0.95,
-                step=0.01,
-                key="type_threshold"
-            )
+        # SECTION 3: Detect and Fix Mixed-Type Columns
+        st.header("3. Detect and Fix Mixed-Type Columns")
+        st.markdown("""
+        This step identifies columns with mixed types (e.g., strings in numeric columns) and lets you fix them by:
+        - Converting the whole column based on dominant type.
+        - Replacing rogue entries with NaN.
+        - Skipping columns you want to leave unchanged.
+        """)
         
-        # Use updated logic to analyze data types
-        type_summary = determine_column_data_types(df, type_threshold)
+        type_threshold = st.slider(
+            "Set the minimum percentage required to determine a dominant type (default = 95%)",
+            min_value=0.5, max_value=1.0, value=0.95, step=0.01
+        )
         
-        # Show user which object columns are inferred to be numeric
-        to_convert = []
-        for col, info in type_summary.items():
-            if info['original_dtype'] == 'object' and info['inferred_type'] == 'numeric':
-                to_convert.append({
-                    "Column": col,
-                    "Original Dtype": info['original_dtype'],
-                    "Inferred Type": info['inferred_type'],
-                    "Numeric %": f"{info['numeric_ratio']*100:.2f}%",
-                    "Missing %": f"{info['missing_pct']:.2f}%"
-                })
-        
-        if to_convert:
-            st.warning("⚠️ These object columns look numeric and will be converted automatically:")
-            st.dataframe(pd.DataFrame(to_convert))
-        else:
-            st.success("🎉 No object columns detected as numeric candidates.")
-
-
-        # Preview mixed-type columns BEFORE conversion
         type_info = determine_column_data_types(df, type_threshold)
-        mixed_cols = {k: v for k, v in type_info.items() if v == 'mixed'}
+        mixed_type_cols = {k: v for k, v in type_info.items() if v['inferred_type'] == 'mixed'}
         
-        if mixed_cols:
-            st.subheader("🧪 Detected Mixed-Type Columns")
-            preview = []
+        if mixed_type_cols:
+            st.subheader("🧪 Mixed-Type Columns Detected")
+            for col, stats in mixed_type_cols.items():
+                st.markdown(f"**{col}** — {stats['original_dtype']}")
+                st.write(f"String entries: {stats['string_ratio']:.2f}% | Numeric entries: {stats['numeric_ratio']:.2f}%")
         
-            incorrect_analysis = identify_incorrect_entries(df)
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button(f"Convert '{col}' to dominant type", key=f"convert_{col}"):
+                        if stats['numeric_ratio'] > stats['string_ratio']:
+                            df[col] = pd.to_numeric(df[col], errors='coerce')
+                        else:
+                            df[col] = df[col].astype(str)
+                        st.success(f"Converted '{col}' to its dominant type.")
+                with col2:
+                    if st.button(f"Remove rogue entries in '{col}'", key=f"nan_{col}"):
+                        rogue_indices = []
+                        for idx, val in enumerate(df[col]):
+                            if pd.isna(val):
+                                continue
+                            try:
+                                float(val)
+                                if stats['string_ratio'] > stats['numeric_ratio']:
+                                    rogue_indices.append(idx)
+                            except:
+                                if stats['numeric_ratio'] > stats['string_ratio']:
+                                    rogue_indices.append(idx)
+                        df.loc[rogue_indices, col] = np.nan
+                        st.success(f"Replaced rogue entries with NaN in '{col}'")
+                with col3:
+                    if st.button(f"Skip '{col}'", key=f"skip_{col}"):
+                        st.info(f"Skipped column '{col}'.")
         
-            for col in mixed_cols:
-                details = incorrect_analysis.get(col, {})
-                preview.append({
-                    "Column": col,
-                    "String Count": details.get('string_count', 0),
-                    "Numeric Count": details.get('numeric_count', 0),
-                    "String %": f"{details.get('string_ratio', 0):.2f}%",
-                    "Numeric %": f"{details.get('numeric_ratio', 0):.2f}%",
-                })
-        
-            st.dataframe(pd.DataFrame(preview))
+            st.session_state.processed_df = df
         else:
             st.success("🎉 No mixed-type columns detected.")
 
-        if st.button("Convert Mixed Data Types"):
-            cleaned_df, conversion_report = convert_mixed_data_types(df, type_threshold)
-            st.session_state.processed_df = cleaned_df
-            df = st.session_state.processed_df
-            
-            if conversion_report:
-                st.success("Data types have been converted!")
-                st.subheader("Data Type Conversions:")
-                for change in conversion_report:
-                    st.write(change)
-            else:
-                st.write("No data type conversions were necessary.")
-            
-            st.subheader("Updated Data Preview:")
-            st.dataframe(df.head())
+        # SECTION 4: Standardize Column Data Types
+        st.header("4. Standardize Column Data Types")
+        st.markdown("""
+        This step ensures your columns use appropriate base types:
+        - Convert `object` columns to numeric or string.
+        - Convert `float64` to `int64` if values are all whole numbers.
+        - Optionally detect datetime-like strings and convert them.
+        """)
+        
+        preview_fixes = []
+        for col in df.columns:
+            orig_dtype = df[col].dtype
+            if orig_dtype == 'object':
+                try:
+                    df[col] = pd.to_numeric(df[col])
+                    preview_fixes.append(f"{col}: object → numeric")
+                except:
+                    df[col] = df[col].astype(str)
+                    preview_fixes.append(f"{col}: object → string")
+            elif orig_dtype == 'float64':
+                if df[col].dropna().apply(float.is_integer).all():
+                    df[col] = df[col].astype('Int64')
+                    preview_fixes.append(f"{col}: float64 → Int64")
+        
+        if st.checkbox("🔍 Attempt datetime conversion for object columns"):
+            for col in df.select_dtypes(include=['object']):
+                try:
+                    converted = pd.to_datetime(df[col], errors='coerce')
+                    if converted.notnull().sum() > 0:
+                        df[col] = converted
+                        preview_fixes.append(f"{col}: object → datetime64")
+                except Exception:
+                    pass
+        
+        if preview_fixes:
+            st.success("Standardization applied:")
+            for fix in preview_fixes:
+                st.write(f"✅ {fix}")
+            st.session_state.processed_df = df
+        else:
+            st.info("No data type conversions were needed.")
 
-        # Handle Incorrect Entries
-        st.header("4. Remove Incorrect Entries")
-        st.markdown("Identify and fix columns with incorrect entries (mixed numeric/string).")
-
-        if st.button("Analyse Incorrect Entries"):
-            # Filter out columns already processed
-            remaining_df = df.drop(columns=list(st.session_state.processed_columns), errors='ignore')
-            analysis = identify_incorrect_entries(remaining_df)
-            st.session_state.incorrect_entries_analysis = analysis
-
-            if not analysis:
-                if st.session_state.processed_columns:
-                    st.success("All mixed entry types have been handled!")
-                else:
-                    st.write("No columns with mixed entry types were found.")
-            else:
-                st.success(f"Found {len(analysis)} columns with mixed entry types:")
-                for column, details in analysis.items():
-                    st.write(f"\n**Column: {column}**")
-                    st.write(f"- String entries: {details['string_count']} ({details['string_ratio']:.2f}%)")
-                    st.write(f"- Numeric entries: {details['numeric_count']} ({details['numeric_ratio']:.2f}%)")
-                    
-                    c1, c2, c3 = st.columns(3)
-                    
-                    with c1:
-                        if st.button(f"Replace strings with NaN in {column}", key=f"str_nan_{column}"):
-                            df.loc[details['string_indices'], column] = np.nan
-                            st.session_state.processed_df = df
-                            st.session_state.processed_columns.add(column)
-                            st.success(f"✅ Replaced string entries with NaN in '{column}'")
-                    
-                    with c2:
-                        if st.button(f"Replace numbers with NaN in {column}", key=f"num_nan_{column}"):
-                            df.loc[details['numeric_indices'], column] = np.nan
-                            st.session_state.processed_df = df
-                            st.session_state.processed_columns.add(column)
-                            st.success(f"✅ Replaced numeric entries with NaN in '{column}'")
-                    
-                    with c3:
-                        if st.button(f"Skip {column}", key=f"skip_{column}"):
-                            st.session_state.processed_columns.add(column)
-                            st.info(f"⏭️ Skipped handling incorrect entries in '{column}'")
-
-        # Processing History
-        if st.session_state.processed_columns:
-            st.markdown("---")
-            st.markdown("**Processing History:**")
-            processed_cols_list = list(st.session_state.processed_columns)
-            if processed_cols_list:
-                st.write(f"✓ Processed columns: {', '.join(processed_cols_list)}")
-            
-            if st.button("Reset Processing History"):
-                st.session_state.processed_columns = set()
-                st.success("Processing history has been reset.")
-
-        # Optimise Categorical Columns
-        st.header("5. Optimise Categorical Columns")
-        st.markdown("Convert object-type columns to categorical if they have a low unique value ratio.")
-        cat_slider_col, _ = st.columns([0.3, 0.7])
-        with cat_slider_col:
-            cat_threshold = st.slider(
-                "Categorical Threshold (Default 10%)", 
-                min_value=0.01, 
-                max_value=0.50, 
-                value=0.10,
-                step=0.01,
-                key="cat_threshold"
-            )
-
-        if st.button("Convert Object Columns to Categorical"):
-            categorical_df = convert_to_categorical_types(df, cat_threshold)
-            st.session_state.processed_df = categorical_df
-            df = st.session_state.processed_df
-            st.success("Appropriate columns have been converted to categorical type!")
-            st.dataframe(df.dtypes)
+        # SECTION 5: Optimize for Analysis
+        st.header("5. Optimize for Analysis")
+        st.markdown("""
+        Final optimization for memory and performance:
+        - Convert low-cardinality string columns to `category`.
+        - Optionally downcast numeric types (e.g., int64 → int32).
+        """)
+        
+        optimize_cats = st.checkbox("Convert low-cardinality string columns to 'category'", value=True)
+        downcast_nums = st.checkbox("Downcast numeric types to smaller types", value=False)
+        
+        if st.button("Run Optimization"):
+            if optimize_cats:
+                for col in df.select_dtypes(include='object'):
+                    if should_treat_as_categorical(df[col]):
+                        df[col] = df[col].astype('category')
+                        st.write(f"✅ {col}: object → category")
+        
+            if downcast_nums:
+                for col in df.select_dtypes(include=['int64', 'float64']):
+                    df[col] = pd.to_numeric(df[col], downcast='unsigned' if df[col].min() >= 0 else 'integer')
+                    st.write(f"✅ {col}: downcasted for memory optimization")
+        
+            st.session_state.processed_df = df
+            st.success("✅ Optimization complete!")
             
         # Section 6: Impute Missing Values
         st.header("6. Impute Missing Values")

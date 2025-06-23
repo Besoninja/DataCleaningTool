@@ -317,11 +317,11 @@ with right_col:
         # SECTION 3: Identify and Clean Mixed-Type Columns
         st.header("3. Identify and Clean Mixed-Type Columns")
         st.markdown("""
-        This step scans for columns that contain a mix of numeric and string entries, which can break downstream analysis.
+        This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.
         
-        If over 75% of the entries are one type (numeric or string), we'll treat that as the **dominant type** and give you the option to remove the rogue entries (`NaN` will be inserted).
+        Use the slider below to set the dominance threshold. By default, it's set to 75%, meaning if 75% or more of the entries in a column are one type (numeric or string), that type is considered **dominant**.
         
-        If the column is ambiguous (e.g., 50/50), you'll be asked to manually choose how it should be treated.
+        You'll then be given the option to remove the *rogue entries* (those that don’t match the dominant type). These will be replaced with `NaN`.
         """)
         
         dominance_threshold = st.slider(

@@ -433,8 +433,115 @@ with right_col:
         
             st.session_state.processed_df = df
             st.success("✅ Optimization complete!")
-            
-        # Section 6: Impute Missing Values
+
+
+        # SECTION 6: Clean and Normalize Text Data
+        st.header("6. Clean and Normalize Text Data")
+        st.markdown("""
+        Clean up string contents to reduce noise and standardize formatting:
+        - Strip leading/trailing spaces
+        - Convert to lowercase
+        - Replace common 'null-like' values (e.g., "NA", "n/a", "--")
+        - Remove invisible characters (e.g., \\xa0, \\u200b)
+        """)
+        
+        text_opts = st.multiselect(
+            "Choose text cleanup actions:",
+            options=[
+                "Strip leading/trailing whitespace",
+                "Convert to lowercase",
+                "Replace common null-like strings",
+                "Remove invisible characters"
+            ],
+            default=[
+                "Strip leading/trailing whitespace",
+                "Convert to lowercase",
+                "Replace common null-like strings"
+            ]
+        )
+        
+        if st.button("Apply Text Cleanup"):
+            df = st.session_state.processed_df.copy()
+            cleaned_cols = []
+        
+            for col in df.select_dtypes(include=['object', 'string']):
+                original = df[col].copy()
+        
+                if "Strip leading/trailing whitespace" in text_opts:
+                    df[col] = df[col].astype(str).str.strip()
+        
+                if "Convert to lowercase" in text_opts:
+                    df[col] = df[col].astype(str).str.lower()
+        
+                if "Replace common null-like strings" in text_opts:
+                    df[col] = df[col].replace(
+                        to_replace=["NA", "N/A", "na", "n/a", "--", "-", "", "null"],
+                        value=np.nan
+                    )
+        
+                if "Remove invisible characters" in text_opts:
+                    import re
+                    df[col] = df[col].astype(str).apply(lambda x: re.sub(r'[\u200b\xa0]', '', x))
+        
+                if not df[col].equals(original):
+                    cleaned_cols.append(col)
+        
+            st.session_state.processed_df = df
+        
+            if cleaned_cols:
+                st.success(f"✅ Cleaned text data in {len(cleaned_cols)} column(s): {', '.join(cleaned_cols)}")
+                st.dataframe(df[cleaned_cols].head())
+            else:
+                st.info("No changes were made during text cleanup.")
+
+        # SECTION 7: Clean Column Names
+        st.header("7. Clean Column Names")
+        st.markdown("""
+        Fix inconsistent column naming:
+        - Remove leading/trailing whitespace
+        - Standardize format (e.g., `snake_case`)
+        - Remove special characters
+        """)
+        
+        rename_opts = st.multiselect(
+            "Choose column name cleanup actions:",
+            options=[
+                "Strip whitespace",
+                "Standardize to snake_case",
+                "Remove special characters"
+            ],
+            default=["Strip whitespace", "Standardize to snake_case"]
+        )
+        
+        # Preview cleanup before applying
+        def clean_column_name(name):
+            import re
+            original = name
+            if "Strip whitespace" in rename_opts:
+                name = name.strip()
+            if "Remove special characters" in rename_opts:
+                name = re.sub(r'[^\w\s]', '', name)
+            if "Standardize to snake_case" in rename_opts:
+                name = re.sub(r'\s+', '_', name).lower()
+            return name
+        
+        if st.checkbox("🔍 Show before/after preview"):
+            col_preview = pd.DataFrame({
+                "Original Name": df.columns,
+                "Cleaned Name": [clean_column_name(col) for col in df.columns]
+            })
+            st.dataframe(col_preview)
+        
+        if st.button("Apply Column Name Cleanup"):
+            new_names = [clean_column_name(col) for col in df.columns]
+            df.columns = new_names
+            st.session_state.processed_df = df
+            st.success("✅ Column names cleaned and updated!")
+            st.dataframe(df.head())
+
+
+
+        # SECTION 6: Impute Missing Values
         st.header("6. Impute Missing Values")
         
         if 'impute_log' not in st.session_state:
@@ -604,7 +711,7 @@ with right_col:
             st.info("Please upload a CSV file to begin.")
 
             
-        # Download Processed Data
+        # SECTION 7: Download Processed Data
         st.header("7. Download Processed Data")
         if st.button("Show Final Data Preview"):
             st.subheader("Preview of Processed Data:")

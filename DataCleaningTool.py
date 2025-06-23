@@ -321,50 +321,61 @@ with right_col:
         - Skipping columns you want to leave unchanged.
         """)
         
+        # Threshold for dominant type
         type_threshold = st.slider(
             "Set the minimum percentage required to determine a dominant type (default = 95%)",
             min_value=0.5, max_value=1.0, value=0.95, step=0.01
         )
         
-        type_info = determine_column_data_types(df, type_threshold)
-        mixed_type_cols = {k: v for k, v in type_info.items() if v['inferred_type'] == 'mixed'}
+        # Add a button to manually run the detection
+        if st.button("Detect Mixed-Type Columns"):
+            st.session_state.type_info = determine_column_data_types(df, type_threshold)
+            st.session_state.mixed_type_cols = {
+                k: v for k, v in st.session_state.type_info.items() if v['inferred_type'] == 'mixed'
+            }
         
-        if mixed_type_cols:
-            st.subheader("🧪 Mixed-Type Columns Detected")
-            for col, stats in mixed_type_cols.items():
-                st.markdown(f"**{col}** — {stats['original_dtype']}")
-                st.write(f"String entries: {stats['string_ratio']:.2f}% | Numeric entries: {stats['numeric_ratio']:.2f}%")
+        # Only show analysis results if detection has been run
+        if 'mixed_type_cols' in st.session_state:
+            mixed_type_cols = st.session_state.mixed_type_cols
+            type_info = st.session_state.type_info
         
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if st.button(f"Convert '{col}' to dominant type", key=f"convert_{col}"):
-                        if stats['numeric_ratio'] > stats['string_ratio']:
-                            df[col] = pd.to_numeric(df[col], errors='coerce')
-                        else:
-                            df[col] = df[col].astype(str)
-                        st.success(f"Converted '{col}' to its dominant type.")
-                with col2:
-                    if st.button(f"Remove rogue entries in '{col}'", key=f"nan_{col}"):
-                        rogue_indices = []
-                        for idx, val in enumerate(df[col]):
-                            if pd.isna(val):
-                                continue
-                            try:
-                                float(val)
-                                if stats['string_ratio'] > stats['numeric_ratio']:
-                                    rogue_indices.append(idx)
-                            except:
-                                if stats['numeric_ratio'] > stats['string_ratio']:
-                                    rogue_indices.append(idx)
-                        df.loc[rogue_indices, col] = np.nan
-                        st.success(f"Replaced rogue entries with NaN in '{col}'")
-                with col3:
-                    if st.button(f"Skip '{col}'", key=f"skip_{col}"):
-                        st.info(f"Skipped column '{col}'.")
+            if mixed_type_cols:
+                st.subheader("🧪 Mixed-Type Columns Detected")
+                for col, stats in mixed_type_cols.items():
+                    st.markdown(f"**{col}** — {stats['original_dtype']}")
+                    st.write(f"String entries: {stats['string_ratio']:.2f}% | Numeric entries: {stats['numeric_ratio']:.2f}%")
         
-            st.session_state.processed_df = df
-        else:
-            st.success("🎉 No mixed-type columns detected.")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button(f"Convert '{col}' to dominant type", key=f"convert_{col}"):
+                            if stats['numeric_ratio'] > stats['string_ratio']:
+                                df[col] = pd.to_numeric(df[col], errors='coerce')
+                            else:
+                                df[col] = df[col].astype(str)
+                            st.success(f"Converted '{col}' to its dominant type.")
+                    with col2:
+                        if st.button(f"Remove rogue entries in '{col}'", key=f"nan_{col}"):
+                            rogue_indices = []
+                            for idx, val in enumerate(df[col]):
+                                if pd.isna(val):
+                                    continue
+                                try:
+                                    float(val)
+                                    if stats['string_ratio'] > stats['numeric_ratio']:
+                                        rogue_indices.append(idx)
+                                except:
+                                    if stats['numeric_ratio'] > stats['string_ratio']:
+                                        rogue_indices.append(idx)
+                            df.loc[rogue_indices, col] = np.nan
+                            st.success(f"Replaced rogue entries with NaN in '{col}'")
+                    with col3:
+                        if st.button(f"Skip '{col}'", key=f"skip_{col}"):
+                            st.info(f"Skipped column '{col}'.")
+        
+                st.session_state.processed_df = df
+            else:
+                st.success("🎉 No mixed-type columns detected.")
+
 
         # SECTION 4: Standardize Column Data Types
         st.header("4. Standardize Column Data Types")
@@ -541,8 +552,8 @@ with right_col:
 
 
 
-        # SECTION 6: Impute Missing Values
-        st.header("6. Impute Missing Values")
+        # SECTION 8: Impute Missing Values
+        st.header("8. Impute Missing Values")
         
         if 'impute_log' not in st.session_state:
             st.session_state.impute_log = []
@@ -552,10 +563,26 @@ with right_col:
         df = st.session_state.processed_df
         
         if df is not None:
-            missing_columns = df.columns[df.isnull().any()]
-            if len(missing_columns) == 0:
-                st.success("🎉 No missing values found in your dataset.")
+            missing_stats = df.isnull().sum()
+            total_missing = missing_stats.sum()
+            missing_cols = missing_stats[missing_stats > 0]
+        
+            st.subheader("🧮 Missing Value Summary")
+            if total_missing == 0:
+                st.success("🎉 No missing values in your dataset!")
             else:
+                percent_missing = (total_missing / (df.shape[0] * df.shape[1])) * 100
+                st.write(f"🔍 **Total Missing Cells:** `{total_missing}` ({percent_missing:.2f}%)")
+                st.dataframe(missing_cols.to_frame("Missing Count"))
+        
+                if st.checkbox("🗑 Drop rows with more than 50% missing values"):
+                    initial_rows = df.shape[0]
+                    df = df[df.isnull().mean(axis=1) < 0.5]
+                    st.session_state.processed_df = df
+                    st.success(f"✅ Dropped {initial_rows - df.shape[0]} rows.")
+                    st.dataframe(df.head())
+        
+                missing_columns = df.columns[df.isnull().any()]
                 selected_column = st.selectbox("Select a column to impute", missing_columns)
         
                 col_dtype = df[selected_column].dtype
@@ -574,49 +601,37 @@ with right_col:
                     impute_mode = None
         
                 # Apply to all toggle
-                apply_all = st.checkbox("Apply to all columns with missing values using this method")
+                apply_all = st.checkbox("Apply to all columns of this type using this method")
         
-                methods = []
-                method_descriptions = {}
+                method_descriptions = {
+                    # Simple & categorical
+                    "Mean": "👉 Replaces missing values with the average of the column. Best for continuous data without extreme outliers.",
+                    "Median": "👉 Replaces missing values with the median (middle) value. Robust to outliers.",
+                    "Mode": "👉 Replaces missing values with the most frequently occurring value.",
+                    "Fill with 'NA' (string literal)": "👉 Inserts the string 'NA' into missing cells. Best for text columns where 'NA' is meaningful.",
+                    "Fill with custom value": "👉 Lets you manually enter any value to replace missing cells.",
+                    "Forward Fill (LOCF)": "👉 Carries the last known value forward. Good for time-series or ordered data.",
+                    "Backward Fill (NOCB)": "👉 Pulls the next valid value backward. Also useful in ordered datasets.",
+                    # Advanced
+                    "KNN Imputer": "🔍 Finds the 'k' most similar rows and uses their values to fill in the blanks. Great when patterns exist across columns.",
+                    "Linear Regression": "📈 Uses other numeric columns to predict the missing value using a regression model.",
+                    "Iterative Imputer (MICE)": "🔁 Models each column as a function of the others and iteratively predicts missing values.",
+                    "MissForest (Random Forest)": "🌲 Uses random forests to fill missing values non-linearly. Very powerful, slower to run.",
+                    "Interpolation": "📉 Connects the dots in numeric data (linear/spline interpolation). Good for time-continuous data.",
+                    "Expectation Maximization (EM)": "📊 A statistical technique that guesses likely values. Not implemented.",
+                    "Bayesian Imputation": "🧠 Samples values from a posterior probability distribution. Not implemented here."
+                }
         
-                # Shared across modes
-                method_descriptions.update({
-                    "Mode": "Replaces missing values with the most frequently occurring value in the column.",
-                    "Fill with NA": "Replaces missing values with a 'NA' placeholder.",
-                    "Fill with custom value": "Allows user to enter a specific value to fill missing cells.",
-                    "Forward Fill (LOCF)": "Fills missing values with the last valid observation above (good for time-ordered data).",
-                    "Backward Fill (NOCB)": "Fills missing values with the next valid observation below.",
-                })
-        
-                # Simple methods
                 if impute_mode == "Simple":
-                    methods = ["Mean", "Median"] + list(method_descriptions.keys())
-                    method_descriptions.update({
-                        "Mean": "Fills missing values with the average of the column.",
-                        "Median": "Fills missing values with the median value of the column.",
-                    })
-        
+                    methods = ["Mean", "Median", "Mode", "Fill with 'NA' (string literal)", "Fill with custom value", "Forward Fill (LOCF)", "Backward Fill (NOCB)"]
                 elif impute_mode == "Advanced":
-                    methods = [
-                        "KNN Imputer", "Linear Regression", "Iterative Imputer (MICE)",
-                        "MissForest (Random Forest)", "Interpolation", "Expectation Maximization (EM)", "Bayesian Imputation"
-                    ]
-                    method_descriptions.update({
-                        "KNN Imputer": "Uses similar rows to predict missing values based on proximity in feature space.",
-                        "Linear Regression": "Trains a regression model using complete rows to predict missing values.",
-                        "Iterative Imputer (MICE)": "Fills missing values iteratively, modeling each column as a function of the others.",
-                        "MissForest (Random Forest)": "Non-linear imputation using random forests (via `missingpy`).",
-                        "Interpolation": "Estimates missing values from trends in nearby values (linear/spline).",
-                        "Expectation Maximization (EM)": "Statistical method that maximizes likelihood to estimate missing data.",
-                        "Bayesian Imputation": "Samples probable values from a posterior distribution (via `pymc`)."
-                    })
-        
+                    methods = ["KNN Imputer", "Linear Regression", "Iterative Imputer (MICE)", "MissForest (Random Forest)", "Interpolation", "Expectation Maximization (EM)", "Bayesian Imputation"]
                 elif impute_mode == "Categorical":
-                    methods = list(method_descriptions.keys())
+                    methods = ["Mode", "Fill with 'NA' (string literal)", "Fill with custom value"]
         
-                selected_method = st.selectbox("Select an imputation method", methods)
+                selected_method = st.selectbox("Choose your imputation method", methods)
         
-                with st.expander("ℹ️ About this method"):
+                with st.expander("ℹ️ What this method does"):
                     st.markdown(method_descriptions.get(selected_method, "No description available."))
         
                 if selected_method == "Fill with custom value":
@@ -626,52 +641,54 @@ with right_col:
                     st.session_state.df_backup = df.copy()
         
                     def apply_imputation(col):
-        
-                        if selected_method == "Mean":
-                            df[col] = df[col].fillna(df[col].mean())
-                        elif selected_method == "Median":
-                            df[col] = df[col].fillna(df[col].median())
-                        elif selected_method == "Mode":
-                            df[col] = df[col].fillna(df[col].mode().iloc[0])
-                        elif selected_method == "Fill with NA":
-                            df[col] = df[col].fillna("NA")
-                        elif selected_method == "Fill with custom value":
-                            df[col] = df[col].fillna(custom_value)
-                        elif selected_method == "Forward Fill (LOCF)":
-                            df[col] = df[col].fillna(method="ffill")
-                        elif selected_method == "Backward Fill (NOCB)":
-                            df[col] = df[col].fillna(method="bfill")
-                        elif selected_method == "KNN Imputer":
-                            from sklearn.impute import KNNImputer
-                            imputer = KNNImputer(n_neighbors=3)
-                            df[df.columns] = imputer.fit_transform(df)
-                        elif selected_method == "Linear Regression":
-                            from sklearn.linear_model import LinearRegression
-                            complete = df[df[col].notnull()]
-                            missing = df[df[col].isnull()]
-                            X_train = complete.drop(columns=[col]).select_dtypes(include=[np.number])
-                            y_train = complete[col]
-                            X_missing = missing.drop(columns=[col]).select_dtypes(include=[np.number])
-                            if len(X_train) > 0 and len(X_missing) > 0:
-                                model = LinearRegression().fit(X_train, y_train)
-                                df.loc[df[col].isnull(), col] = model.predict(X_missing)
-                        elif selected_method == "Iterative Imputer (MICE)":
-                            from sklearn.experimental import enable_iterative_imputer
-                            from sklearn.impute import IterativeImputer
-                            imp = IterativeImputer(random_state=0)
-                            df[df.columns] = imp.fit_transform(df)
-                        elif selected_method == "Interpolation":
-                            df[col] = df[col].interpolate(method='linear')
-                        elif selected_method == "MissForest (Random Forest)":
-                            from missingpy import MissForest
-                            mf = MissForest()
-                            df[df.columns] = mf.fit_transform(df)
-                        elif selected_method == "Expectation Maximization (EM)":
-                            st.warning("⚠️ EM is not implemented yet. Please install `fancyimpute` or skip.")
-                        elif selected_method == "Bayesian Imputation":
-                            st.warning("⚠️ Bayesian imputation is complex and requires PyMC. Not implemented in this version.")
-                        else:
-                            st.error("❌ Unsupported imputation method.")
+                        try:
+                            if selected_method == "Mean":
+                                df[col] = df[col].fillna(df[col].mean())
+                            elif selected_method == "Median":
+                                df[col] = df[col].fillna(df[col].median())
+                            elif selected_method == "Mode":
+                                df[col] = df[col].fillna(df[col].mode().iloc[0])
+                            elif selected_method == "Fill with 'NA' (string literal)":
+                                df[col] = df[col].fillna("NA")
+                            elif selected_method == "Fill with custom value":
+                                df[col] = df[col].fillna(custom_value)
+                            elif selected_method == "Forward Fill (LOCF)":
+                                df[col] = df[col].fillna(method="ffill")
+                            elif selected_method == "Backward Fill (NOCB)":
+                                df[col] = df[col].fillna(method="bfill")
+                            elif selected_method == "KNN Imputer":
+                                from sklearn.impute import KNNImputer
+                                imputer = KNNImputer(n_neighbors=3)
+                                df[df.columns] = imputer.fit_transform(df)
+                            elif selected_method == "Linear Regression":
+                                from sklearn.linear_model import LinearRegression
+                                complete = df[df[col].notnull()]
+                                missing = df[df[col].isnull()]
+                                X_train = complete.drop(columns=[col]).select_dtypes(include=[np.number])
+                                y_train = complete[col]
+                                X_missing = missing.drop(columns=[col]).select_dtypes(include=[np.number])
+                                if len(X_train) > 0 and len(X_missing) > 0:
+                                    model = LinearRegression().fit(X_train, y_train)
+                                    df.loc[df[col].isnull(), col] = model.predict(X_missing)
+                            elif selected_method == "Iterative Imputer (MICE)":
+                                from sklearn.experimental import enable_iterative_imputer
+                                from sklearn.impute import IterativeImputer
+                                imp = IterativeImputer(random_state=0)
+                                df[df.columns] = imp.fit_transform(df)
+                            elif selected_method == "Interpolation":
+                                df[col] = df[col].interpolate(method='linear')
+                            elif selected_method == "MissForest (Random Forest)":
+                                from missingpy import MissForest
+                                mf = MissForest()
+                                df[df.columns] = mf.fit_transform(df)
+                            elif selected_method == "Expectation Maximization (EM)":
+                                st.warning("⚠️ EM not implemented. Requires `fancyimpute`.")
+                            elif selected_method == "Bayesian Imputation":
+                                st.warning("⚠️ Bayesian imputation requires `pymc` and is not implemented.")
+                            else:
+                                st.error("❌ Unknown imputation method.")
+                        except Exception as e:
+                            st.error(f"⚠️ Failed to apply imputation: {e}")
         
                     if apply_all:
                         applicable_columns = [col for col in missing_columns if df[col].dtype == df[selected_column].dtype]
@@ -700,7 +717,6 @@ with right_col:
                     else:
                         st.warning("⚠️ No backup available to undo.")
         
-                # Optional: Show Imputation Log
                 with st.expander("🧾 Imputation Log"):
                     if st.session_state.impute_log:
                         for idx, (col, method) in enumerate(reversed(st.session_state.impute_log[-10:]), 1):
@@ -710,19 +726,42 @@ with right_col:
         else:
             st.info("Please upload a CSV file to begin.")
 
+
             
-        # SECTION 7: Download Processed Data
-        st.header("7. Download Processed Data")
-        if st.button("Show Final Data Preview"):
-            st.subheader("Preview of Processed Data:")
-            st.dataframe(df.head())
+        # SECTION 9: Download Processed Data
+        st.header("9. Download Processed Data")
+        
+        df = st.session_state.processed_df
+        
+        if df is not None:
+            st.markdown(f"Your cleaned dataset has **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
             
-            csv_export = df.to_csv(index=False)
-            st.download_button(
-                label="Download CSV",
-                data=csv_export,
-                file_name="processed_data.csv",
-                mime="text/csv"
-            )
-    else:
-        st.info("Please upload a CSV file to get started.")
+            if st.button("Show Final Data Preview"):
+                st.subheader("📋 Final Data Preview")
+                st.dataframe(df.head())
+        
+            file_format = st.radio("Choose download format", ["CSV", "Excel (.xlsx)"], horizontal=True)
+        
+            if file_format == "CSV":
+                csv_data = df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="⬇️ Download CSV File",
+                    data=csv_data,
+                    file_name="cleaned_data.csv",
+                    mime="text/csv"
+                )
+            else:
+                from io import BytesIO
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                    df.to_excel(writer, index=False, sheet_name='CleanedData')
+                    writer.save()
+                st.download_button(
+                    label="⬇️ Download Excel File",
+                    data=output.getvalue(),
+                    file_name="cleaned_data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.info("Please upload and clean a dataset before downloading.")
+

@@ -509,104 +509,86 @@ with right_col:
             st.success("✅ Optimization complete!")
 
 #####################################################################################################################################
-# SECTION 6: Detect and Handle Outliers
-        st.header("6. Detect and Handle Outliers")
-        with st.expander("ℹ️ What are outliers and how does this work?"):
-            st.markdown("""
-            ### What are outliers?
-            Outliers are data points that are unusually high or low compared to the rest of your data. 
-            For example, if most salaries in your dataset are between $30,000-$80,000, but you have one entry 
-            of $500,000, that would be an outlier.
-            
-            ### How does this work?
-            This tool uses a statistical method called the **IQR (Interquartile Range) method** to find outliers:
-            
-            1. **Q1 (25th percentile)**: The value below which 25% of your data falls
-            2. **Q3 (75th percentile)**: The value below which 75% of your data falls  
-            3. **IQR**: The difference between Q3 and Q1 (captures the "middle 50%" of your data)
-            
-            **Outliers are defined as:**
-            - Values below: Q1 - (multiplier × IQR)
-            - Values above: Q3 + (multiplier × IQR)
-            
-            ### Instructions:
-            1. **Adjust the multiplier** below (1.5 is standard - lower values find more outliers, higher values find fewer)
-            2. **Click "Run Outlier Detection"** to scan your numeric columns
-            3. **For each column with outliers, choose:**
-               - **Replace with NaN**: Keeps the rows but marks outlier values as missing
-               - **Drop rows**: Completely removes rows containing outliers
-               - **Skip**: Leave the outliers as-is for now
-            
-            💡 **Tip**: Start with the default multiplier of 1.5. You can always run this multiple times with different settings.
-            """)
-        
-        iqr_threshold = st.slider(
-            "IQR Multiplier (default = 1.5)", min_value=1.0, max_value=5.0, value=1.5, step=0.1
-        )
-        
-        if st.button("Run Outlier Detection"):
-            df = st.session_state.processed_df.copy()
-            outlier_report = {}
-            
-            for col in df.select_dtypes(include=[np.number]).columns:
-                Q1 = df[col].quantile(0.25)
-                Q3 = df[col].quantile(0.75)
-                IQR = Q3 - Q1
-                lower_bound = Q1 - iqr_threshold * IQR
-                upper_bound = Q3 + iqr_threshold * IQR
-                mask = (df[col] < lower_bound) | (df[col] > upper_bound)
-                count = mask.sum()
-                if count > 0:
-                    outlier_report[col] = {
-                        "lower": lower_bound,
-                        "upper": upper_bound,
-                        "count": count,
-                        "percent": 100 * count / len(df),
-                        "mask": mask
-                    }
-        
-            if outlier_report:
-                st.success(f"✅ Found {len(outlier_report)} columns with outliers.")
-                for col, stats in outlier_report.items():
-                    st.markdown(f"**Column: `{col}`**")
-                    st.write(f"- Outliers: {stats['count']} ({stats['percent']:.2f}%)")
-                    st.write(f"- Lower bound: {stats['lower']:.2f}")
-                    st.write(f"- Upper bound: {stats['upper']:.2f}")
-                    
-                    # Show outlier rows
-                    outlier_rows = df[stats["mask"]]
-                    if len(outlier_rows) > 0:
-                        st.markdown(f"**Sample outlier rows for `{col}`:**")
-                        # Display up to 5 rows with scrolling if more exist
-                        st.dataframe(
-                            outlier_rows, 
-                            height=min(200, len(outlier_rows) * 35 + 38),  # Dynamic height based on rows
-                            use_container_width=True
-                        )
-                        if len(outlier_rows) > 5:
-                            st.caption(f"Showing all {len(outlier_rows)} outlier rows. Scroll within the table to see more.")
-                        else:
-                            st.caption(f"Showing all {len(outlier_rows)} outlier rows.")
-                    
-                    c1, c2, c3 = st.columns(3)
-            
-                    with c1:
-                        if st.button(f"Replace outliers in '{col}' with NaN", key=f"nan_{col}"):
-                            df.loc[stats["mask"], col] = np.nan
-                            st.session_state.processed_df = df
-                            st.success(f"✅ Replaced outliers in '{col}' with NaN")
-            
-                    with c2:
-                        if st.button(f"Drop rows with outliers in '{col}'", key=f"drop_{col}"):
-                            df = df[~stats["mask"]]
-                            st.session_state.processed_df = df
-                            st.success(f"🗑️ Dropped {stats['count']} rows with outliers in '{col}'")
-            
-                    with c3:
-                        if st.button(f"Skip column '{col}'", key=f"skip_{col}"):
-                            st.info(f"⏭️ Skipped handling outliers in '{col}'")
-            else:
-                st.success("🎉 No outliers detected using the current IQR threshold.")
+# SECTION 4: Standardize Column Data Types
+st.header("4. Standardize Column Data Types")
+st.markdown("Clean up column types to prepare your dataset for analysis.")
+
+# Work with a copy to avoid corrupting user data on preview
+df_copy = df.copy()
+preview_results = []
+
+# 4.1 Object → Numeric
+st.subheader("4.1 Convert object columns to numeric")
+enable_numeric = st.checkbox("Enable numeric conversion", key="enable_numeric")
+
+if enable_numeric:
+    numeric_cols = []
+    for col in df_copy.select_dtypes(include=['object']):
+        try:
+            pd.to_numeric(df_copy[col])
+            numeric_cols.append(col)
+        except:
+            continue
+
+    if numeric_cols:
+        st.dataframe(df_copy[numeric_cols].head(), use_container_width=True)
+        if st.button("Convert to Numeric", key="btn_numeric"):
+            for col in numeric_cols:
+                df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
+                preview_results.append(f"{col}: object → numeric")
+    else:
+        st.info("No object columns can be converted to numeric.")
+
+# 4.2 Object → Datetime
+st.subheader("4.2 Convert object columns to datetime")
+enable_datetime = st.checkbox("Enable datetime conversion", key="enable_datetime")
+
+if enable_datetime:
+    datetime_cols = []
+    for col in df_copy.select_dtypes(include=['object']):
+        try:
+            converted = pd.to_datetime(df_copy[col], errors='coerce')
+            if converted.notnull().sum() > 0:
+                datetime_cols.append(col)
+        except:
+            continue
+
+    if datetime_cols:
+        st.dataframe(df_copy[datetime_cols].head(), use_container_width=True)
+        if st.button("Convert to Datetime", key="btn_datetime"):
+            for col in datetime_cols:
+                df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce')
+                preview_results.append(f"{col}: object → datetime")
+    else:
+        st.info("No object columns matched datetime format.")
+
+# 4.3 Float → Int
+st.subheader("4.3 Convert float columns to integer (if safe)")
+enable_floatint = st.checkbox("Enable float-to-int optimization", key="enable_floatint")
+
+if enable_floatint:
+    safe_int_cols = []
+    for col in df_copy.select_dtypes(include=['float64']):
+        if df_copy[col].dropna().apply(float.is_integer).all():
+            safe_int_cols.append(col)
+
+    if safe_int_cols:
+        st.dataframe(df_copy[safe_int_cols].head(), use_container_width=True)
+        if st.button("Convert to Int", key="btn_floatint"):
+            for col in safe_int_cols:
+                df_copy[col] = df_copy[col].astype('Int64')
+                preview_results.append(f"{col}: float64 → Int64")
+    else:
+        st.info("No float columns are safely convertible to integers.")
+
+# Final commit to session state
+if preview_results:
+    st.success("Changes applied:")
+    for line in preview_results:
+        st.write(f"✅ {line}")
+    st.session_state.processed_df = df_copy
+else:
+    st.info("No changes were applied.")
 
 #####################################################################################################################################
 # SECTION 7: Clean and Normalize Text Data

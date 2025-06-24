@@ -292,7 +292,7 @@ with left_col:
 
 with right_col:
 #####################################################################################################################################
-    # SECTION 1: File Upload Section
+# SECTION 1: File Upload Section
     st.header("1. Upload Data")
     uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
@@ -304,7 +304,7 @@ with right_col:
         st.success("File successfully uploaded!")
         
 #####################################################################################################################################
-        # SECTION 2: Data Overview
+# SECTION 2: Data Overview
         st.header("2. Data Overview")
         st.write(f"Dataset Shape: {df.shape[0]} rows and {df.shape[1]} columns")
         
@@ -330,7 +330,7 @@ with right_col:
             st.success("🎉 No missing values found in your dataset.")
         
 #####################################################################################################################################
-        # SECTION 3: Identify and Clean Mixed-Type Columns
+# SECTION 3: Identify and Clean Mixed-Type Columns
         st.header("3. Identify and Clean Mixed-Type Columns")
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.
@@ -430,50 +430,59 @@ with right_col:
 
 
 #####################################################################################################################################
-        # SECTION 4: Standardize Column Data Types
+# SECTION 4: Standardize Column Data Types
         st.header("4. Standardize Column Data Types")
         st.markdown("""
         This step ensures your columns use appropriate base types:
         - Convert `object` columns to numeric or string.
         - Convert `float64` to `int64` if values are all whole numbers.
         - Optionally detect datetime-like strings and convert them.
+        
+        Click the button below to apply standardization. Enable the checkbox if you want to also attempt datetime conversion.
         """)
         
-        preview_fixes = []
-        for col in df.columns:
-            orig_dtype = df[col].dtype
-            if orig_dtype == 'object':
-                try:
-                    df[col] = pd.to_numeric(df[col])
-                    preview_fixes.append(f"{col}: object → numeric")
-                except:
-                    df[col] = df[col].astype(str)
-                    preview_fixes.append(f"{col}: object → string")
-            elif orig_dtype == 'float64':
-                if df[col].dropna().apply(float.is_integer).all():
-                    df[col] = df[col].astype('Int64')
-                    preview_fixes.append(f"{col}: float64 → Int64")
+        apply_datetime = st.checkbox("🔍 Attempt datetime conversion for object columns", value=False)
         
-        if st.checkbox("🔍 Attempt datetime conversion for object columns"):
-            for col in df.select_dtypes(include=['object']):
-                try:
-                    converted = pd.to_datetime(df[col], errors='coerce')
-                    if converted.notnull().sum() > 0:
-                        df[col] = converted
-                        preview_fixes.append(f"{col}: object → datetime64")
-                except Exception:
-                    pass
+        if st.button("⚙️ Apply Standardization"):
+            preview_fixes = []
+            df_copy = df.copy()
         
-        if preview_fixes:
-            st.success("Standardization applied:")
-            for fix in preview_fixes:
-                st.write(f"✅ {fix}")
-            st.session_state.processed_df = df
-        else:
-            st.info("No data type conversions were needed.")
+            for col in df_copy.columns:
+                orig_dtype = df_copy[col].dtype
+        
+                if orig_dtype == 'object':
+                    try:
+                        df_copy[col] = pd.to_numeric(df_copy[col])
+                        preview_fixes.append(f"{col}: object → numeric")
+                    except:
+                        df_copy[col] = df_copy[col].astype(str)
+                        preview_fixes.append(f"{col}: object → string")
+        
+                elif orig_dtype == 'float64':
+                    if df_copy[col].dropna().apply(float.is_integer).all():
+                        df_copy[col] = df_copy[col].astype('Int64')
+                        preview_fixes.append(f"{col}: float64 → Int64")
+        
+            if apply_datetime:
+                for col in df_copy.select_dtypes(include=['object']):
+                    try:
+                        converted = pd.to_datetime(df_copy[col], errors='coerce')
+                        if converted.notnull().sum() > 0:
+                            df_copy[col] = converted
+                            preview_fixes.append(f"{col}: object → datetime64")
+                    except Exception:
+                        pass
+        
+            if preview_fixes:
+                st.success("Standardization applied:")
+                for fix in preview_fixes:
+                    st.write(f"✅ {fix}")
+                st.session_state.processed_df = df_copy
+            else:
+                st.info("No data type conversions were needed.")
 
 #####################################################################################################################################
-        # SECTION 5: Optimize for Analysis
+# SECTION 5: Optimize for Analysis
         st.header("5. Optimize for Analysis")
         st.markdown("""
         Final optimization for memory and performance:
@@ -500,7 +509,7 @@ with right_col:
             st.success("✅ Optimization complete!")
 
 #####################################################################################################################################
-        # SECTION 6: Detect and Handle Outliers
+# SECTION 6: Detect and Handle Outliers
         st.header("6. Detect and Handle Outliers")
         with st.expander("ℹ️ What are outliers and how does this work?"):
             st.markdown("""
@@ -600,7 +609,7 @@ with right_col:
                 st.success("🎉 No outliers detected using the current IQR threshold.")
 
 #####################################################################################################################################
-        # SECTION 7: Clean and Normalize Text Data
+# SECTION 7: Clean and Normalize Text Data
         st.header("7. Clean and Normalize Text Data")
         st.markdown("""
         Clean up string contents to reduce noise and standardize formatting:
@@ -660,7 +669,7 @@ with right_col:
                 st.info("No changes were made during text cleanup.")
                 
 #####################################################################################################################################
-        # SECTION 8: Clean Column Names
+# SECTION 8: Clean Column Names
         st.header("8. Clean Column Names")
         st.markdown("""
         Fix inconsistent column naming:
@@ -707,7 +716,7 @@ with right_col:
 
 
 #####################################################################################################################################
-        # SECTION 9: Impute Missing Values
+# SECTION 9: Impute Missing Values
         st.header("9. Impute Missing Values")
         
         if 'impute_log' not in st.session_state:
@@ -884,7 +893,7 @@ with right_col:
 
 
 #####################################################################################################################################            
-        # SECTION 10: Download Processed Data
+# SECTION 10: Download Processed Data
         st.header("10. Download Processed Data")
         
         df = st.session_state.processed_df

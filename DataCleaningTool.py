@@ -271,6 +271,89 @@ def convert_to_categorical_types(dataframe, cat_threshold=0.1):
             dataframe_converted[col] = pd.Categorical(dataframe_converted[col])
     return dataframe_converted
 
+def analyze_object_columns(df):
+    """Analyze object columns and suggest conversions"""
+    suggestions = {}
+    
+    for col in df.select_dtypes(include=['object']).columns:
+        non_null_values = df[col].dropna()
+        if len(non_null_values) == 0:
+            continue
+            
+        # Test conversion success rates
+        numeric_success = 0
+        datetime_success = 0
+        
+        for val in non_null_values:
+            # Test numeric conversion
+            try:
+                pd.to_numeric(val)
+                numeric_success += 1
+            except:
+                pass
+            
+            # Test datetime conversion  
+            try:
+                pd.to_datetime(val)
+                datetime_success += 1
+            except:
+                pass
+        
+        total = len(non_null_values)
+        numeric_pct = (numeric_success / total) * 100
+        datetime_pct = (datetime_success / total) * 100
+        string_pct = 100 - max(numeric_pct, datetime_pct)
+        
+        # Determine best conversion
+        best_conversion = 'string'  # default
+        confidence = string_pct
+        
+        if numeric_pct > 85:  # high confidence threshold
+            best_conversion = 'numeric'
+            confidence = numeric_pct
+        elif datetime_pct > 85:
+            best_conversion = 'datetime' 
+            confidence = datetime_pct
+        
+        suggestions[col] = {
+            'numeric_pct': numeric_pct,
+            'datetime_pct': datetime_pct, 
+            'string_pct': string_pct,
+            'suggested': best_conversion,
+            'confidence': confidence
+        }
+    
+    return suggestions
+
+def apply_conversions(df, conversion_choices):
+    """Apply the selected conversions to the dataframe"""
+    df_copy = df.copy()
+    conversion_results = []
+    
+    for col, conversion_type in conversion_choices.items():
+        if conversion_type == 'numeric':
+            try:
+                df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
+                conversion_results.append(f"{col}: object → numeric")
+            except Exception as e:
+                st.error(f"Failed to convert {col} to numeric: {str(e)}")
+        
+        elif conversion_type == 'datetime':
+            try:
+                df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce')
+                conversion_results.append(f"{col}: object → datetime")
+            except Exception as e:
+                st.error(f"Failed to convert {col} to datetime: {str(e)}")
+        
+        elif conversion_type == 'string':
+            try:
+                df_copy[col] = df_copy[col].astype('string')
+                conversion_results.append(f"{col}: object → string")
+            except Exception as e:
+                st.error(f"Failed to convert {col} to string: {str(e)}")
+    
+    return df_copy, conversion_results
+
 #####################################################################################################################################
 ### Code ###
 #####################################################################################################################################
@@ -430,87 +513,97 @@ with right_col:
 
 
 #####################################################################################################################################
-# SECTION 4: Standardize Column Data Types
-        st.header("4. Standardize Column Data Types")
-        st.markdown("Clean up column types to prepare your dataset for analysis.")
+# SECTION 4: Smart Object Column Conversion
+        st.header("4. Smart Object Column Conversion")
+        st.markdown("Automatically detect and convert object columns to their appropriate data types.")
+        if st.button("🔍 Analyze Object Columns"):
+            st.session_state.object_suggestions = analyze_object_columns(df)
         
-        # Work with a copy to avoid corrupting user data on preview
-        df_copy = df.copy()
-        preview_results = []
-        
-# 4.1 Object → Numeric
-        st.subheader("4.1 Convert object columns to numeric")
-        enable_numeric = st.checkbox("Enable numeric conversion", key="enable_numeric")
-        
-        if enable_numeric:
-            numeric_cols = []
-            for col in df_copy.select_dtypes(include=['object']):
-                try:
-                    pd.to_numeric(df_copy[col])
-                    numeric_cols.append(col)
-                except:
-                    continue
-        
-            if numeric_cols:
-                st.dataframe(df_copy[numeric_cols].head(), use_container_width=True)
-                if st.button("Convert to Numeric", key="btn_numeric"):
-                    for col in numeric_cols:
-                        df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
-                        preview_results.append(f"{col}: object → numeric")
+        if 'object_suggestions' in st.session_state:
+            suggestions = st.session_state.object_suggestions
+            
+            if suggestions:
+                st.subheader("📊 Column Analysis Results")
+                
+                conversion_choices = {}
+                
+                for col, info in suggestions.items():
+                    st.markdown(f"### {col}")
+                    
+                    col1, col2, col3 = st.columns([3, 2, 2])
+                    
+                    with col1:
+                        # Visual breakdown
+                        st.write("**Data Type Breakdown:**")
+                        st.write(f"🔢 Numeric: {info['numeric_pct']:.1f}%")
+                        st.write(f"📅 Datetime: {info['datetime_pct']:.1f}%") 
+                        st.write(f"📝 String: {info['string_pct']:.1f}%")
+                        
+                        # Show sample values
+                        sample_values = df[col].dropna().head(3).tolist()
+                        st.write(f"**Sample values:** {sample_values}")
+                    
+                    with col2:
+                        suggested = info['suggested']
+                        conversion_choice = st.selectbox(
+                            "Convert to:",
+                            options=['string', 'numeric', 'datetime'],
+                            index=['string', 'numeric', 'datetime'].index(suggested),
+                            key=f"convert_{col}",
+                            help=f"Suggested: {suggested} (confidence: {info['confidence']:.1f}%)"
+                        )
+                        conversion_choices[col] = conversion_choice
+                    
+                    with col3:
+                        st.metric("Confidence", f"{info['confidence']:.1f}%")
+                        if info['confidence'] > 85:
+                            st.success("High confidence")
+                        elif info['confidence'] > 60:
+                            st.warning("Medium confidence")
+                        else:
+                            st.error("Low confidence")
+                    
+                    st.divider()
+                
+                # Apply conversions button
+                if st.button("🔄 Apply Selected Conversions", type="primary"):
+                    df_converted, results = apply_conversions(df, conversion_choices)
+                    
+                    if results:
+                        st.success("✅ Conversions applied successfully!")
+                        for result in results:
+                            st.write(f"• {result}")
+                        
+                        # Update the main dataframe
+                        st.session_state.processed_df = df_converted
+                        
+                        # Clear the suggestions to avoid confusion
+                        del st.session_state.object_suggestions
+                    else:
+                        st.info("No conversions were applied.")
+            
             else:
-                st.info("No object columns can be converted to numeric.")
+                st.success("🎉 No object columns found to convert.")
         
-# 4.2 Object → Datetime
-        st.subheader("4.2 Convert object columns to datetime")
-        enable_datetime = st.checkbox("Enable datetime conversion", key="enable_datetime")
-        
-        if enable_datetime:
-            datetime_cols = []
-            for col in df_copy.select_dtypes(include=['object']):
-                try:
-                    converted = pd.to_datetime(df_copy[col], errors='coerce')
-                    if converted.notnull().sum() > 0:
-                        datetime_cols.append(col)
-                except:
-                    continue
-        
-            if datetime_cols:
-                st.dataframe(df_copy[datetime_cols].head(), use_container_width=True)
-                if st.button("Convert to Datetime", key="btn_datetime"):
-                    for col in datetime_cols:
-                        df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce')
-                        preview_results.append(f"{col}: object → datetime")
-            else:
-                st.info("No object columns matched datetime format.")
-        
-# 4.3 Float → Int
+        # 4.3 Float → Int (keep this section as-is since it's working well)
         st.subheader("4.3 Convert float columns to integer (if safe)")
         enable_floatint = st.checkbox("Enable float-to-int optimization", key="enable_floatint")
         
         if enable_floatint:
             safe_int_cols = []
-            for col in df_copy.select_dtypes(include=['float64']):
-                if df_copy[col].dropna().apply(float.is_integer).all():
+            for col in df.select_dtypes(include=['float64']):
+                if df[col].dropna().apply(float.is_integer).all():
                     safe_int_cols.append(col)
         
             if safe_int_cols:
-                st.dataframe(df_copy[safe_int_cols].head(), use_container_width=True)
+                st.dataframe(df[safe_int_cols].head(), use_container_width=True)
                 if st.button("Convert to Int", key="btn_floatint"):
                     for col in safe_int_cols:
-                        df_copy[col] = df_copy[col].astype('Int64')
-                        preview_results.append(f"{col}: float64 → Int64")
+                        df[col] = df[col].astype('Int64')
+                        st.success(f"✅ {col}: float64 → Int64")
+                    st.session_state.processed_df = df
             else:
                 st.info("No float columns are safely convertible to integers.")
-        
-# Final commit to session state
-        if preview_results:
-            st.success("Changes applied:")
-            for line in preview_results:
-                st.write(f"✅ {line}")
-            st.session_state.processed_df = df_copy
-        else:
-            st.info("No changes were applied.")
-
 
 #####################################################################################################################################
 # SECTION 5: Optimize for Analysis

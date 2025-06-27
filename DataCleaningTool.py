@@ -414,7 +414,7 @@ with right_col:
         
 #####################################################################################################################################
 # SECTION 3: Identify and Clean Mixed-Type Columns
-        st.header("3. Identify and Clean Mixed-Type Columns")
+        st.header("3. Resolve Data Type Conflicts")
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.
         

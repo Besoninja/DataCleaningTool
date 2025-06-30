@@ -418,16 +418,10 @@ with right_col:
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.
         
-        Use the slider below to set the detection threshold. This helps identify columns with mixed data types so you can choose how to handle them.
+        Even a single rogue entry can cause issues, so we'll detect ANY mixed-type columns and let you choose how to handle them.
         """)
         
-        dominance_threshold = st.slider(
-            "Mixed-Type Detection Threshold",
-            min_value=0.1, max_value=0.9, value=0.25, step=0.05,
-            help="Columns with at least this % of minority type values will be flagged as mixed-type."
-        )
-        
-        def detect_mixed_columns(df, threshold=0.25):
+        def detect_mixed_columns(df):
             mixed_cols = {}
         
             for col in df.columns:
@@ -441,87 +435,87 @@ with right_col:
         
                 num_count = 0
                 str_count = 0
+                numeric_examples = []
+                string_examples = []
         
                 for val in values:
                     try:
                         float(val)
                         num_count += 1
+                        if len(numeric_examples) < 3:
+                            numeric_examples.append(val)
                     except:
                         str_count += 1
+                        if len(string_examples) < 3:
+                            string_examples.append(val)
         
                 numeric_ratio = num_count / total
                 string_ratio = str_count / total
         
-                # Flag as mixed if minority type exceeds threshold
-                if min(numeric_ratio, string_ratio) >= threshold:
+                # Flag ANY column with both types (even 1 rogue entry)
+                if 0 < numeric_ratio < 1:
                     mixed_cols[col] = {
                         'numeric_ratio': numeric_ratio * 100,
                         'string_ratio': string_ratio * 100,
                         'numeric_count': num_count,
                         'string_count': str_count,
-                        'total_count': total
+                        'total_count': total,
+                        'numeric_examples': numeric_examples,
+                        'string_examples': string_examples
                     }
         
             return mixed_cols
         
-        def apply_resolution_strategy(df, col, strategy, target_type=None):
+        def apply_resolution_strategy(df, col, strategy):
             """Apply the chosen resolution strategy to a mixed-type column"""
             results = []
+            df_copy = df.copy()
             
             if strategy == "convert_all_to_string":
-                # Convert everything to string
-                df[col] = df[col].astype(str)
-                results.append(f"✅ All values in '{col}' converted to string")
+                # Convert everything to string - safest option
+                df_copy[col] = df_copy[col].astype(str)
+                df_copy[col] = df_copy[col].replace('nan', np.nan)  # Keep NaNs as NaN
+                results.append(f"All values in '{col}' converted to string")
                 
-            elif strategy == "convert_numeric_to_string":
-                # Convert only numeric values to string, keep existing strings
-                for idx, val in df[col].items():
+            elif strategy == "force_to_numeric":
+                # Try to convert everything to numeric, set non-convertible to NaN
+                original_nulls = df_copy[col].isna().sum()
+                df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
+                new_nulls = df_copy[col].isna().sum()
+                failed_conversions = new_nulls - original_nulls
+                results.append(f"'{col}' converted to numeric ({failed_conversions} non-numeric values → NaN)")
+                
+            elif strategy == "remove_strings":
+                # Remove string values (set to NaN)
+                removed_count = 0
+                for idx, val in df_copy[col].items():
                     if pd.isna(val):
                         continue
                     try:
                         float(val)
-                        # It's numeric, convert to string
-                        df[col].at[idx] = str(val)
                     except:
-                        # It's already a string, leave it
+                        df_copy.at[idx] = np.nan
+                        removed_count += 1
+                results.append(f"String values removed from '{col}' ({removed_count} values → NaN)")
+                
+            elif strategy == "remove_numbers":
+                # Remove numeric values (set to NaN)
+                removed_count = 0
+                for idx, val in df_copy[col].items():
+                    if pd.isna(val):
+                        continue
+                    try:
+                        float(val)
+                        df_copy.at[idx] = np.nan
+                        removed_count += 1
+                    except:
                         pass
-                results.append(f"✅ Numeric values in '{col}' converted to string")
-                
-            elif strategy == "force_numeric":
-                # Try to convert everything to numeric, set non-convertible to NaN
-                original_nulls = df[col].isna().sum()
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-                new_nulls = df[col].isna().sum()
-                failed_conversions = new_nulls - original_nulls
-                results.append(f"✅ '{col}' converted to numeric ({failed_conversions} non-numeric values set to NaN)")
-                
-            elif strategy == "remove_minority":
-                # Remove the minority type (set to NaN)
-                values = df[col].dropna()
-                num_count = sum(1 for val in values if pd.to_numeric(val, errors='coerce') is not pd.NA)
-                str_count = len(values) - num_count
-                
-                if target_type == "keep_numeric":
-                    # Remove string values
-                    for idx, val in df[col].items():
-                        if pd.isna(val):
-                            continue
-                        if pd.to_numeric(val, errors='coerce') is pd.NA:
-                            df[col].at[idx] = np.nan
-                    results.append(f"✅ String values removed from '{col}' ({str_count} values set to NaN)")
-                else:  # keep_string
-                    # Remove numeric values
-                    for idx, val in df[col].items():
-                        if pd.isna(val):
-                            continue
-                        if pd.to_numeric(val, errors='coerce') is not pd.NA:
-                            df[col].at[idx] = np.nan
-                    results.append(f"✅ Numeric values removed from '{col}' ({num_count} values set to NaN)")
+                results.append(f"Numeric values removed from '{col}' ({removed_count} values → NaN)")
             
-            return df, results
+            return df_copy, results
         
         if st.button("🔍 Scan for Mixed-Type Columns"):
-            st.session_state.mixed_cols = detect_mixed_columns(df, dominance_threshold)
+            st.session_state.mixed_cols = detect_mixed_columns(df)
         
         if 'mixed_cols' in st.session_state:
             mixed_cols = st.session_state.mixed_cols
@@ -529,125 +523,71 @@ with right_col:
                 st.subheader("🧪 Mixed-Type Columns Found")
                 
                 for col, info in mixed_cols.items():
-                    st.markdown(f"### Column: `{col}`")
-                    
-                    col1, col2, col3 = st.columns([2, 2, 2])
-                    
-                    with col1:
-                        st.write("**Data Type Breakdown:**")
-                        st.write(f"🔢 Numeric: {info['numeric_ratio']:.1f}% ({info['numeric_count']} values)")
-                        st.write(f"📝 String: {info['string_ratio']:.1f}% ({info['string_count']} values)")
-                        st.write(f"📊 Total: {info['total_count']} non-null values")
+                    with st.expander(f"🔧 Column: '{col}' - {info['numeric_count']} numeric, {info['string_count']} string values", expanded=True):
                         
-                        # Show sample values
-                        sample_values = df[col].dropna().head(5).tolist()
-                        st.write(f"**Sample values:** {sample_values}")
-                    
-                    with col2:
-                        st.write("**Resolution Options:**")
+                        col1, col2 = st.columns([1, 1])
                         
-                        strategy = st.selectbox(
-                            "Choose strategy:",
-                            options=[
-                                "convert_all_to_string",
-                                "convert_numeric_to_string", 
-                                "force_numeric",
-                                "remove_minority"
-                            ],
-                            format_func=lambda x: {
-                                "convert_all_to_string": "🔤 Convert all to string",
-                                "convert_numeric_to_string": "🔄 Convert numbers to string",
-                                "force_numeric": "🔢 Force to numeric (失敗 → NaN)",
-                                "remove_minority": "🗑️ Remove minority type"
-                            }[x],
-                            key=f"strategy_{col}"
-                        )
-                        
-                        # Additional options for remove_minority strategy
-                        target_type = None
-                        if strategy == "remove_minority":
-                            if info['numeric_ratio'] > info['string_ratio']:
-                                default_keep = "keep_numeric"
-                                minority_type = "string"
-                                minority_pct = info['string_ratio']
-                            else:
-                                default_keep = "keep_string"
-                                minority_type = "numeric"
-                                minority_pct = info['numeric_ratio']
+                        with col1:
+                            st.write("**📊 Breakdown:**")
+                            st.write(f"🔢 Numeric: {info['numeric_ratio']:.1f}% ({info['numeric_count']} values)")
+                            st.write(f"📝 String: {info['string_ratio']:.1f}% ({info['string_count']} values)")
                             
-                            target_type = st.radio(
-                                f"Keep which type? (Will remove {minority_pct:.1f}% {minority_type} values)",
-                                options=["keep_numeric", "keep_string"],
-                                format_func=lambda x: f"🔢 Keep numeric" if x == "keep_numeric" else "📝 Keep string",
-                                index=0 if default_keep == "keep_numeric" else 1,
-                                key=f"target_{col}"
+                            st.write("**🔢 Sample numeric values:**")
+                            st.code(str(info['numeric_examples']))
+                            
+                            st.write("**📝 Sample string values:**")
+                            st.code(str(info['string_examples']))
+                        
+                        with col2:
+                            st.write("**🎯 Choose Resolution Strategy:**")
+                            
+                            strategy = st.radio(
+                                f"How should we handle '{col}'?",
+                                options=[
+                                    "convert_all_to_string",
+                                    "force_to_numeric", 
+                                    "remove_strings",
+                                    "remove_numbers"
+                                ],
+                                format_func=lambda x: {
+                                    "convert_all_to_string": "🔤 Convert all to string (safest - no data loss)",
+                                    "force_to_numeric": "🔢 Force to numeric (strings → NaN)",
+                                    "remove_strings": "🗑️ Remove string values (→ NaN)", 
+                                    "remove_numbers": "🗑️ Remove numeric values (→ NaN)"
+                                }[x],
+                                key=f"strategy_{col}"
                             )
-                    
-                    with col3:
-                        st.write("**Strategy Explanation:**")
-                        
-                        if strategy == "convert_all_to_string":
-                            st.info("✨ **Safest option** - Keeps all data as text. Good for IDs, mixed categorical data.")
-                        elif strategy == "convert_numeric_to_string":
-                            st.info("🔄 Converts numbers to text while preserving existing strings. Good for mixed IDs.")
-                        elif strategy == "force_numeric":
-                            st.warning("⚠️ Non-numeric values become NaN. Use if you need numerical analysis.")
-                        else:  # remove_minority
-                            st.error("🗑️ **Data loss** - Removes minority type values permanently.")
-                        
-                        # Apply button for this column
-                        if st.button(f"Apply to '{col}'", key=f"apply_{col}", type="secondary"):
-                            df_updated, results = apply_resolution_strategy(df, col, strategy, target_type)
                             
-                            for result in results:
-                                st.success(result)
+                            # Show impact preview
+                            if strategy == "convert_all_to_string":
+                                st.success("✅ Safe choice - all data preserved as text")
+                            elif strategy == "force_to_numeric":
+                                st.warning(f"⚠️ Will set {info['string_count']} string values to NaN")
+                            elif strategy == "remove_strings":
+                                st.error(f"🗑️ Will remove {info['string_count']} string values")
+                            elif strategy == "remove_numbers":
+                                st.error(f"🗑️ Will remove {info['numeric_count']} numeric values")
                             
-                            # Update the main dataframe
-                            st.session_state.processed_df = df_updated
-                            df = df_updated  # Update local reference
-                            
-                            # Remove this column from mixed_cols since it's been processed
-                            if col in st.session_state.mixed_cols:
-                                del st.session_state.mixed_cols[col]
-                            
-                            st.rerun()  # Refresh to show updated state
-                    
-                    st.divider()
-                
-                # Bulk apply option if multiple columns remain
-                if len(mixed_cols) > 1:
-                    st.markdown("### Bulk Operations")
-                    st.info("💡 **Tip:** For bulk operations, the safest approach is usually 'Convert all to string' to preserve all data.")
-                    
-                    bulk_strategy = st.selectbox(
-                        "Bulk strategy for all remaining columns:",
-                        options=["convert_all_to_string", "convert_numeric_to_string"],
-                        format_func=lambda x: {
-                            "convert_all_to_string": "🔤 Convert all to string (safest)",
-                            "convert_numeric_to_string": "🔄 Convert numbers to string"
-                        }[x],
-                        key="bulk_strategy"
-                    )
-                    
-                    if st.button("🔄 Apply Bulk Strategy", type="primary"):
-                        all_results = []
-                        df_bulk = df.copy()
-                        
-                        for col in list(mixed_cols.keys()):
-                            df_bulk, results = apply_resolution_strategy(df_bulk, col, bulk_strategy)
-                            all_results.extend(results)
-                        
-                        st.success("✅ Bulk strategy applied to all mixed-type columns!")
-                        for result in all_results:
-                            st.write(f"• {result}")
-                        
-                        # Update the main dataframe and clear mixed_cols
-                        st.session_state.processed_df = df_bulk
-                        del st.session_state.mixed_cols
-                        
-                        st.rerun()
+                            # Confirmation and apply
+                            if st.button(f"Apply to '{col}'", key=f"apply_{col}", type="primary"):
+                                df_updated, results = apply_resolution_strategy(df, col, strategy)
+                                
+                                st.success("✅ Changes applied!")
+                                for result in results:
+                                    st.write(f"• {result}")
+                                
+                                # Update the main dataframe
+                                st.session_state.processed_df = df_updated
+                                df = df_updated
+                                
+                                # Remove from mixed_cols
+                                if col in st.session_state.mixed_cols:
+                                    del st.session_state.mixed_cols[col]
+                                
+                                st.rerun()
             else:
-                st.success("🎉 No mixed-type columns detected with current threshold.")
+                st.success("🎉 No mixed-type columns detected!")
+                
 #####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
         st.header("4. Smart Object Column Conversion")

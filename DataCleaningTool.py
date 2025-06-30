@@ -494,7 +494,7 @@ with right_col:
                     try:
                         float(val)
                     except:
-                        df_copy.at[idx] = np.nan
+                        df_copy.at[idx, col] = np.nan
                         removed_count += 1
                 results.append(f"String values removed from '{col}' ({removed_count} values → NaN)")
                 
@@ -506,7 +506,7 @@ with right_col:
                         continue
                     try:
                         float(val)
-                        df_copy.at[idx] = np.nan
+                        df_copy.at[idx, col] = np.nan
                         removed_count += 1
                     except:
                         pass

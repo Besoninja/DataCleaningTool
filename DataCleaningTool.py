@@ -541,26 +541,30 @@ with right_col:
                         with col2:
                             st.write("**🎯 Choose Resolution Strategy:**")
                             
-                            strategy = st.radio(
+                            # Determine default based on dominant type
+                            default_strategy = "remove_strings" if info['numeric_count'] > info['string_count'] else "remove_numbers"
+                            
+                            strategy = st.selectbox(
                                 f"How should we handle '{col}'?",
                                 options=[
-                                    "convert_all_to_string",
-                                    "force_to_numeric", 
                                     "remove_strings",
-                                    "remove_numbers"
+                                    "remove_numbers",
+                                    "convert_all_to_string",
+                                    "force_to_numeric"
                                 ],
                                 format_func=lambda x: {
-                                    "convert_all_to_string": "🔤 Convert all to string (safest - no data loss)",
+                                    "convert_all_to_string": "🔤 Convert all to string",
                                     "force_to_numeric": "🔢 Force to numeric (strings → NaN)",
                                     "remove_strings": "🗑️ Remove string values (→ NaN)", 
                                     "remove_numbers": "🗑️ Remove numeric values (→ NaN)"
                                 }[x],
+                                index=0 if default_strategy == "remove_strings" else 1,
                                 key=f"strategy_{col}"
                             )
                             
                             # Show impact preview
                             if strategy == "convert_all_to_string":
-                                st.success("✅ Safe choice - all data preserved as text")
+                                st.info("ℹ️ All data preserved as text")
                             elif strategy == "force_to_numeric":
                                 st.warning(f"⚠️ Will set {info['string_count']} string values to NaN")
                             elif strategy == "remove_strings":

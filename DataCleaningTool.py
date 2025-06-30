@@ -542,9 +542,23 @@ with right_col:
                         # Show sample values
                         sample_values = df[col].dropna().head(3).tolist()
                         st.write(f"**Sample values:** {sample_values}")
+                        
+                        # Add recommendation message
+                        suggested = info['suggested']
+                        confidence = info['confidence']
+                        if confidence > 85:
+                            confidence_text = "High confidence"
+                            confidence_color = "success"
+                        elif confidence > 60:
+                            confidence_text = "Medium confidence"
+                            confidence_color = "warning"
+                        else:
+                            confidence_text = "Low confidence"
+                            confidence_color = "error"
+                        
+                        st.info(f"💡 **Recommendation:** Convert column '{col}' to **{suggested}** ({confidence_text}: {confidence:.1f}%)")
                     
                     with col2:
-                        suggested = info['suggested']
                         conversion_choice = st.selectbox(
                             "Convert to:",
                             options=['string', 'numeric', 'datetime'],
@@ -553,6 +567,27 @@ with right_col:
                             help=f"Suggested: {suggested} (confidence: {info['confidence']:.1f}%)"
                         )
                         conversion_choices[col] = conversion_choice
+                        
+                        # Individual apply button for this column
+                        if st.button(f"🔄 Apply to '{col}'", key=f"apply_{col}", type="secondary"):
+                            df_converted, results = apply_conversions(df, {col: conversion_choice})
+                            
+                            if results:
+                                st.success(f"✅ Conversion applied to '{col}'!")
+                                for result in results:
+                                    st.write(f"• {result}")
+                                
+                                # Update the main dataframe
+                                st.session_state.processed_df = df_converted
+                                df = df_converted  # Update local df reference
+                                
+                                # Remove this column from suggestions since it's been processed
+                                if col in st.session_state.object_suggestions:
+                                    del st.session_state.object_suggestions[col]
+                                
+                                st.rerun()  # Refresh to show updated state
+                            else:
+                                st.info(f"No conversion was applied to '{col}'.")
                     
                     with col3:
                         st.metric("Confidence", f"{info['confidence']:.1f}%")
@@ -565,22 +600,26 @@ with right_col:
                     
                     st.divider()
                 
-                # Apply conversions button
-                if st.button("🔄 Apply Selected Conversions", type="primary"):
-                    df_converted, results = apply_conversions(df, conversion_choices)
-                    
-                    if results:
-                        st.success("✅ Conversions applied successfully!")
-                        for result in results:
-                            st.write(f"• {result}")
+                # Keep the bulk apply button as well for convenience
+                if len(suggestions) > 1:  # Only show if multiple columns remain
+                    st.markdown("### Bulk Operations")
+                    if st.button("🔄 Apply All Selected Conversions", type="primary"):
+                        df_converted, results = apply_conversions(df, conversion_choices)
                         
-                        # Update the main dataframe
-                        st.session_state.processed_df = df_converted
-                        
-                        # Clear the suggestions to avoid confusion
-                        del st.session_state.object_suggestions
-                    else:
-                        st.info("No conversions were applied.")
+                        if results:
+                            st.success("✅ All conversions applied successfully!")
+                            for result in results:
+                                st.write(f"• {result}")
+                            
+                            # Update the main dataframe
+                            st.session_state.processed_df = df_converted
+                            
+                            # Clear all suggestions since they've been processed
+                            del st.session_state.object_suggestions
+                            
+                            st.rerun()  # Refresh to show updated state
+                        else:
+                            st.info("No conversions were applied.")
             
             else:
                 st.success("🎉 No object columns found to convert.")
@@ -604,7 +643,6 @@ with right_col:
                     st.session_state.processed_df = df
             else:
                 st.info("No float columns are safely convertible to integers.")
-
 #####################################################################################################################################
 # SECTION 5: Optimize for Analysis
         st.header("5. Optimize for Analysis")

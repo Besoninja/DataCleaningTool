@@ -418,18 +418,16 @@ with right_col:
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.
         
-        Use the slider below to set the dominance threshold. By default, it's set to 75%, meaning if 75% or more of the entries in a column are one type (numeric or string), that type is considered **dominant**.
-        
-        You'll then be given the option to remove the *rogue entries* (those that don’t match the dominant type). These will be replaced with `NaN`.
+        Use the slider below to set the detection threshold. This helps identify columns with mixed data types so you can choose how to handle them.
         """)
         
         dominance_threshold = st.slider(
-            "Dominant Type Threshold",
-            min_value=0.5, max_value=1.0, value=0.75, step=0.01,
-            help="If more than this % of values are numeric or string, we'll classify that as the dominant type."
+            "Mixed-Type Detection Threshold",
+            min_value=0.1, max_value=0.9, value=0.25, step=0.05,
+            help="Columns with at least this % of minority type values will be flagged as mixed-type."
         )
         
-        def detect_mixed_columns(df, threshold=0.75):
+        def detect_mixed_columns(df, threshold=0.25):
             mixed_cols = {}
         
             for col in df.columns:
@@ -454,36 +452,73 @@ with right_col:
                 numeric_ratio = num_count / total
                 string_ratio = str_count / total
         
-                if 0 < numeric_ratio < 1:
-                    dominant = None
-                    if numeric_ratio >= threshold:
-                        dominant = 'numeric'
-                    elif string_ratio >= threshold:
-                        dominant = 'string'
-        
+                # Flag as mixed if minority type exceeds threshold
+                if min(numeric_ratio, string_ratio) >= threshold:
                     mixed_cols[col] = {
                         'numeric_ratio': numeric_ratio * 100,
                         'string_ratio': string_ratio * 100,
-                        'dominant': dominant
+                        'numeric_count': num_count,
+                        'string_count': str_count,
+                        'total_count': total
                     }
         
             return mixed_cols
         
-        def clean_rogues(df, col, dominant):
-            for idx, val in df[col].items():
-                if pd.isna(val):
-                    continue
-                try:
-                    float(val)
-                    is_numeric = True
-                except:
-                    is_numeric = False
-        
-                if dominant == 'numeric' and not is_numeric:
-                    df.at[idx, col] = np.nan
-                elif dominant == 'string' and is_numeric:
-                    df.at[idx, col] = np.nan
-            return df
+        def apply_resolution_strategy(df, col, strategy, target_type=None):
+            """Apply the chosen resolution strategy to a mixed-type column"""
+            results = []
+            
+            if strategy == "convert_all_to_string":
+                # Convert everything to string
+                df[col] = df[col].astype(str)
+                results.append(f"✅ All values in '{col}' converted to string")
+                
+            elif strategy == "convert_numeric_to_string":
+                # Convert only numeric values to string, keep existing strings
+                for idx, val in df[col].items():
+                    if pd.isna(val):
+                        continue
+                    try:
+                        float(val)
+                        # It's numeric, convert to string
+                        df[col].at[idx] = str(val)
+                    except:
+                        # It's already a string, leave it
+                        pass
+                results.append(f"✅ Numeric values in '{col}' converted to string")
+                
+            elif strategy == "force_numeric":
+                # Try to convert everything to numeric, set non-convertible to NaN
+                original_nulls = df[col].isna().sum()
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+                new_nulls = df[col].isna().sum()
+                failed_conversions = new_nulls - original_nulls
+                results.append(f"✅ '{col}' converted to numeric ({failed_conversions} non-numeric values set to NaN)")
+                
+            elif strategy == "remove_minority":
+                # Remove the minority type (set to NaN)
+                values = df[col].dropna()
+                num_count = sum(1 for val in values if pd.to_numeric(val, errors='coerce') is not pd.NA)
+                str_count = len(values) - num_count
+                
+                if target_type == "keep_numeric":
+                    # Remove string values
+                    for idx, val in df[col].items():
+                        if pd.isna(val):
+                            continue
+                        if pd.to_numeric(val, errors='coerce') is pd.NA:
+                            df[col].at[idx] = np.nan
+                    results.append(f"✅ String values removed from '{col}' ({str_count} values set to NaN)")
+                else:  # keep_string
+                    # Remove numeric values
+                    for idx, val in df[col].items():
+                        if pd.isna(val):
+                            continue
+                        if pd.to_numeric(val, errors='coerce') is not pd.NA:
+                            df[col].at[idx] = np.nan
+                    results.append(f"✅ Numeric values removed from '{col}' ({num_count} values set to NaN)")
+            
+            return df, results
         
         if st.button("🔍 Scan for Mixed-Type Columns"):
             st.session_state.mixed_cols = detect_mixed_columns(df, dominance_threshold)
@@ -492,26 +527,127 @@ with right_col:
             mixed_cols = st.session_state.mixed_cols
             if mixed_cols:
                 st.subheader("🧪 Mixed-Type Columns Found")
+                
                 for col, info in mixed_cols.items():
-                    st.markdown(f"**{col}** — {info['numeric_ratio']:.2f}% numeric | {info['string_ratio']:.2f}% string")
-        
-                    chosen_type = info['dominant']
-                    if not chosen_type:
-                        chosen_type = st.radio(
-                            f"❓ Ambiguous column '{col}' — choose dominant type:",
-                            options=['numeric', 'string'],
-                            key=f"choose_{col}"
+                    st.markdown(f"### Column: `{col}`")
+                    
+                    col1, col2, col3 = st.columns([2, 2, 2])
+                    
+                    with col1:
+                        st.write("**Data Type Breakdown:**")
+                        st.write(f"🔢 Numeric: {info['numeric_ratio']:.1f}% ({info['numeric_count']} values)")
+                        st.write(f"📝 String: {info['string_ratio']:.1f}% ({info['string_count']} values)")
+                        st.write(f"📊 Total: {info['total_count']} non-null values")
+                        
+                        # Show sample values
+                        sample_values = df[col].dropna().head(5).tolist()
+                        st.write(f"**Sample values:** {sample_values}")
+                    
+                    with col2:
+                        st.write("**Resolution Options:**")
+                        
+                        strategy = st.selectbox(
+                            "Choose strategy:",
+                            options=[
+                                "convert_all_to_string",
+                                "convert_numeric_to_string", 
+                                "force_numeric",
+                                "remove_minority"
+                            ],
+                            format_func=lambda x: {
+                                "convert_all_to_string": "🔤 Convert all to string",
+                                "convert_numeric_to_string": "🔄 Convert numbers to string",
+                                "force_numeric": "🔢 Force to numeric (失敗 → NaN)",
+                                "remove_minority": "🗑️ Remove minority type"
+                            }[x],
+                            key=f"strategy_{col}"
                         )
-        
-                    if st.button(f"🧹 Remove rogue entries in '{col}'", key=f"clean_{col}"):
-                        df = clean_rogues(df, col, chosen_type)
-                        st.success(f"✅ Rogue entries removed from '{col}' (kept {chosen_type} values)")
-        
-                st.session_state.processed_df = df
+                        
+                        # Additional options for remove_minority strategy
+                        target_type = None
+                        if strategy == "remove_minority":
+                            if info['numeric_ratio'] > info['string_ratio']:
+                                default_keep = "keep_numeric"
+                                minority_type = "string"
+                                minority_pct = info['string_ratio']
+                            else:
+                                default_keep = "keep_string"
+                                minority_type = "numeric"
+                                minority_pct = info['numeric_ratio']
+                            
+                            target_type = st.radio(
+                                f"Keep which type? (Will remove {minority_pct:.1f}% {minority_type} values)",
+                                options=["keep_numeric", "keep_string"],
+                                format_func=lambda x: f"🔢 Keep numeric" if x == "keep_numeric" else "📝 Keep string",
+                                index=0 if default_keep == "keep_numeric" else 1,
+                                key=f"target_{col}"
+                            )
+                    
+                    with col3:
+                        st.write("**Strategy Explanation:**")
+                        
+                        if strategy == "convert_all_to_string":
+                            st.info("✨ **Safest option** - Keeps all data as text. Good for IDs, mixed categorical data.")
+                        elif strategy == "convert_numeric_to_string":
+                            st.info("🔄 Converts numbers to text while preserving existing strings. Good for mixed IDs.")
+                        elif strategy == "force_numeric":
+                            st.warning("⚠️ Non-numeric values become NaN. Use if you need numerical analysis.")
+                        else:  # remove_minority
+                            st.error("🗑️ **Data loss** - Removes minority type values permanently.")
+                        
+                        # Apply button for this column
+                        if st.button(f"Apply to '{col}'", key=f"apply_{col}", type="secondary"):
+                            df_updated, results = apply_resolution_strategy(df, col, strategy, target_type)
+                            
+                            for result in results:
+                                st.success(result)
+                            
+                            # Update the main dataframe
+                            st.session_state.processed_df = df_updated
+                            df = df_updated  # Update local reference
+                            
+                            # Remove this column from mixed_cols since it's been processed
+                            if col in st.session_state.mixed_cols:
+                                del st.session_state.mixed_cols[col]
+                            
+                            st.rerun()  # Refresh to show updated state
+                    
+                    st.divider()
+                
+                # Bulk apply option if multiple columns remain
+                if len(mixed_cols) > 1:
+                    st.markdown("### Bulk Operations")
+                    st.info("💡 **Tip:** For bulk operations, the safest approach is usually 'Convert all to string' to preserve all data.")
+                    
+                    bulk_strategy = st.selectbox(
+                        "Bulk strategy for all remaining columns:",
+                        options=["convert_all_to_string", "convert_numeric_to_string"],
+                        format_func=lambda x: {
+                            "convert_all_to_string": "🔤 Convert all to string (safest)",
+                            "convert_numeric_to_string": "🔄 Convert numbers to string"
+                        }[x],
+                        key="bulk_strategy"
+                    )
+                    
+                    if st.button("🔄 Apply Bulk Strategy", type="primary"):
+                        all_results = []
+                        df_bulk = df.copy()
+                        
+                        for col in list(mixed_cols.keys()):
+                            df_bulk, results = apply_resolution_strategy(df_bulk, col, bulk_strategy)
+                            all_results.extend(results)
+                        
+                        st.success("✅ Bulk strategy applied to all mixed-type columns!")
+                        for result in all_results:
+                            st.write(f"• {result}")
+                        
+                        # Update the main dataframe and clear mixed_cols
+                        st.session_state.processed_df = df_bulk
+                        del st.session_state.mixed_cols
+                        
+                        st.rerun()
             else:
-                st.success("🎉 No mixed-type columns detected.")
-
-
+                st.success("🎉 No mixed-type columns detected with current threshold.")
 #####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
         st.header("4. Smart Object Column Conversion")

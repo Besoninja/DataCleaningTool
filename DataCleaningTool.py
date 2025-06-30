@@ -861,55 +861,194 @@ with right_col:
         - Remove invisible characters (e.g., \\xa0, \\u200b)
         """)
         
-        text_opts = st.multiselect(
-            "Choose text cleanup actions:",
-            options=[
-                "Strip leading/trailing whitespace",
-                "Convert to lowercase",
-                "Replace common null-like strings",
-                "Remove invisible characters"
-            ],
-            default=[
-                "Strip leading/trailing whitespace",
-                "Convert to lowercase",
-                "Replace common null-like strings"
-            ]
-        )
+        # Get text columns from the dataframe
+        df = st.session_state.processed_df
+        text_columns = df.select_dtypes(include=['object', 'string']).columns.tolist()
         
-        if st.button("Apply Text Cleanup"):
-            df = st.session_state.processed_df.copy()
-            cleaned_cols = []
-        
-            for col in df.select_dtypes(include=['object', 'string']):
-                original = df[col].copy()
-        
-                if "Strip leading/trailing whitespace" in text_opts:
-                    df[col] = df[col].astype(str).str.strip()
-        
-                if "Convert to lowercase" in text_opts:
-                    df[col] = df[col].astype(str).str.lower()
-        
-                if "Replace common null-like strings" in text_opts:
-                    df[col] = df[col].replace(
-                        to_replace=["NA", "N/A", "na", "n/a", "--", "-", "", "null"],
-                        value=np.nan
-                    )
-        
-                if "Remove invisible characters" in text_opts:
-                    import re
-                    df[col] = df[col].astype(str).apply(lambda x: re.sub(r'[\u200b\xa0]', '', x))
-        
-                if not df[col].equals(original):
-                    cleaned_cols.append(col)
-        
-            st.session_state.processed_df = df
-        
-            if cleaned_cols:
-                st.success(f"✅ Cleaned text data in {len(cleaned_cols)} column(s): {', '.join(cleaned_cols)}")
-                st.dataframe(df[cleaned_cols].head())
-            else:
-                st.info("No changes were made during text cleanup.")
+        if not text_columns:
+            st.info("No text columns found in your dataset.")
+        else:
+            st.subheader("📊 Text Data Overview")
+            
+            # Create overview of text columns
+            text_overview = []
+            for col in text_columns:
+                non_null_count = df[col].notna().sum()
+                unique_count = df[col].nunique()
                 
+                # Check for null-like strings
+                null_like_patterns = ["NA", "N/A", "na", "n/a", "--", "-", "", "null", "NULL", "Null"]
+                null_like_count = df[col].isin(null_like_patterns).sum()
+                
+                # Check for whitespace issues
+                whitespace_issues = 0
+                if non_null_count > 0:
+                    whitespace_issues = df[col].astype(str).apply(lambda x: x != x.strip()).sum()
+                
+                # Sample values (first 3 non-null unique values)
+                sample_values = df[col].dropna().unique()[:3].tolist()
+                sample_str = ", ".join([f'"{str(val)}"' for val in sample_values])
+                if len(sample_values) == 3 and unique_count > 3:
+                    sample_str += "..."
+                
+                text_overview.append({
+                    'Column': col,
+                    'Non-null Values': non_null_count,
+                    'Unique Values': unique_count,
+                    'Null-like Strings': null_like_count,
+                    'Whitespace Issues': whitespace_issues,
+                    'Sample Values': sample_str
+                })
+            
+            overview_df = pd.DataFrame(text_overview)
+            st.dataframe(overview_df, use_container_width=True)
+            
+            # Column selection
+            st.subheader("🎯 Select Columns to Clean")
+            selected_columns = st.multiselect(
+                "Choose which text columns to clean:",
+                options=text_columns,
+                default=text_columns,
+                help="Select the columns you want to apply text cleaning to"
+            )
+            
+            if selected_columns:
+                # Cleanup options
+                st.subheader("🧹 Choose Cleanup Actions")
+                text_opts = st.multiselect(
+                    "Select text cleanup actions:",
+                    options=[
+                        "Strip leading/trailing whitespace",
+                        "Convert to lowercase",
+                        "Replace common null-like strings",
+                        "Remove invisible characters"
+                    ],
+                    default=[
+                        "Strip leading/trailing whitespace",
+                        "Replace common null-like strings"
+                    ],
+                    help="Choose which cleaning operations to apply to the selected columns"
+                )
+                
+                if text_opts:
+                    # Preview section
+                    st.subheader("👀 Preview Changes")
+                    
+                    preview_col = st.selectbox(
+                        "Select a column to preview changes:",
+                        options=selected_columns,
+                        help="See how the cleanup will affect this column"
+                    )
+                    
+                    if preview_col:
+                        # Create preview of changes
+                        preview_df = df[preview_col].copy().astype(str)
+                        original_preview = preview_df.copy()
+                        
+                        # Apply selected transformations to preview
+                        if "Strip leading/trailing whitespace" in text_opts:
+                            preview_df = preview_df.str.strip()
+                        
+                        if "Convert to lowercase" in text_opts:
+                            preview_df = preview_df.str.lower()
+                        
+                        if "Replace common null-like strings" in text_opts:
+                            null_like_patterns = ["NA", "N/A", "na", "n/a", "--", "-", "", "null", "NULL", "Null"]
+                            preview_df = preview_df.replace(null_like_patterns, pd.NA)
+                        
+                        if "Remove invisible characters" in text_opts:
+                            import re
+                            preview_df = preview_df.apply(lambda x: re.sub(r'[\u200b\xa0\u2000-\u200f\u2028-\u202f]', '', str(x)) if pd.notna(x) else x)
+                        
+                        # Show before/after comparison
+                        changes_mask = (original_preview != preview_df) | (original_preview.isna() != preview_df.isna())
+                        if changes_mask.any():
+                            st.write(f"**Changes detected in '{preview_col}':**")
+                            
+                            # Show sample of changes
+                            changed_indices = changes_mask[changes_mask].index[:10]  # Show up to 10 examples
+                            
+                            comparison_data = []
+                            for idx in changed_indices:
+                                comparison_data.append({
+                                    'Row': idx,
+                                    'Before': repr(original_preview.iloc[idx]) if pd.notna(original_preview.iloc[idx]) else 'NaN',
+                                    'After': repr(preview_df.iloc[idx]) if pd.notna(preview_df.iloc[idx]) else 'NaN'
+                                })
+                            
+                            comparison_df = pd.DataFrame(comparison_data)
+                            st.dataframe(comparison_df, use_container_width=True)
+                            
+                            # Summary stats
+                            total_changes = changes_mask.sum()
+                            total_rows = len(preview_df)
+                            st.write(f"**Summary:** {total_changes:,} out of {total_rows:,} rows will be changed ({total_changes/total_rows*100:.1f}%)")
+                            
+                        else:
+                            st.info(f"No changes will be made to '{preview_col}' with the selected options.")
+                    
+                    # Apply button
+                    st.subheader("✅ Apply Changes")
+                    
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        apply_button = st.button("Apply Text Cleanup", type="primary")
+                    with col2:
+                        st.write(f"Will clean {len(selected_columns)} column(s) with {len(text_opts)} operation(s)")
+                    
+                    if apply_button:
+                        df_cleaned = st.session_state.processed_df.copy()
+                        changes_summary = {}
+                        
+                        for col in selected_columns:
+                            original = df_cleaned[col].copy()
+                            changes_in_col = 0
+                            
+                            if "Strip leading/trailing whitespace" in text_opts:
+                                before_strip = df_cleaned[col].astype(str)
+                                df_cleaned[col] = before_strip.str.strip()
+                                changes_in_col += (before_strip != df_cleaned[col]).sum()
+                            
+                            if "Convert to lowercase" in text_opts:
+                                before_lower = df_cleaned[col].astype(str)
+                                df_cleaned[col] = before_lower.str.lower()
+                                changes_in_col += (before_lower != df_cleaned[col]).sum()
+                            
+                            if "Replace common null-like strings" in text_opts:
+                                before_null_replace = df_cleaned[col].copy()
+                                null_like_patterns = ["NA", "N/A", "na", "n/a", "--", "-", "", "null", "NULL", "Null"]
+                                df_cleaned[col] = df_cleaned[col].replace(null_like_patterns, np.nan)
+                                changes_in_col += (before_null_replace.fillna('__NULL__') != df_cleaned[col].fillna('__NULL__')).sum()
+                            
+                            if "Remove invisible characters" in text_opts:
+                                import re
+                                before_invisible = df_cleaned[col].astype(str)
+                                df_cleaned[col] = before_invisible.apply(lambda x: re.sub(r'[\u200b\xa0\u2000-\u200f\u2028-\u202f]', '', x))
+                                changes_in_col += (before_invisible != df_cleaned[col]).sum()
+                            
+                            if changes_in_col > 0:
+                                changes_summary[col] = changes_in_col
+                        
+                        # Update session state
+                        st.session_state.processed_df = df_cleaned
+                        
+                        # Show results
+                        if changes_summary:
+                            st.success(f"✅ Text cleanup completed! Modified {len(changes_summary)} column(s)")
+                            
+                            # Detailed summary
+                            st.write("**Changes made:**")
+                            for col, change_count in changes_summary.items():
+                                st.write(f"- **{col}**: {change_count:,} values modified")
+                            
+                            # Show sample of cleaned data
+                            st.write("**Sample of cleaned data:**")
+                            st.dataframe(df_cleaned[list(changes_summary.keys())].head(10), use_container_width=True)
+                            
+                        else:
+                            st.info("No changes were made during text cleanup with the selected options.")
+            else:
+                st.warning("Please select at least one column to clean.")
 #####################################################################################################################################
 # SECTION 8: Clean Column Names
         st.header("8. Clean Column Names")

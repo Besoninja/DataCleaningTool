@@ -861,54 +861,83 @@ with right_col:
         - Remove invisible characters (e.g., \\xa0, \\u200b)
         """)
         
-        # Get text columns from the dataframe
-        df = st.session_state.processed_df
-        text_columns = df.select_dtypes(include=['object', 'string']).columns.tolist()
+        # Initialize or get text analysis from session state
+        if 'text_analysis_done' not in st.session_state:
+            st.session_state.text_analysis_done = False
+            st.session_state.text_columns = []
+            st.session_state.text_overview = []
         
-        if not text_columns:
-            st.info("No text columns found in your dataset.")
-        else:
+        # Text Detection Button
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            detect_button = st.button("🔍 Run Text Detection", type="secondary")
+        with col2:
+            if st.session_state.text_analysis_done:
+                st.write(f"✅ Analysis complete - {len(st.session_state.text_columns)} text column(s) found")
+            else:
+                st.write("Click to analyze text columns in your current dataset")
+        
+        if detect_button or not st.session_state.text_analysis_done:
+            # Get text columns from the current dataframe
+            df = st.session_state.processed_df
+            text_columns = df.select_dtypes(include=['object', 'string']).columns.tolist()
+            
+            if not text_columns:
+                st.info("No text columns found in your current dataset.")
+                st.session_state.text_columns = []
+                st.session_state.text_overview = []
+                st.session_state.text_analysis_done = True
+            else:
+                # Store results in session state
+                st.session_state.text_columns = text_columns
+                st.session_state.text_analysis_done = True
+                
+                # Create overview of text columns
+                text_overview = []
+                for col in text_columns:
+                    non_null_count = df[col].notna().sum()
+                    unique_count = df[col].nunique()
+                    
+                    # Check for null-like strings
+                    null_like_patterns = ["NA", "N/A", "na", "n/a", "--", "-", "", "null", "NULL", "Null"]
+                    null_like_count = df[col].isin(null_like_patterns).sum()
+                    
+                    # Check for whitespace issues
+                    whitespace_issues = 0
+                    if non_null_count > 0:
+                        whitespace_issues = df[col].astype(str).apply(lambda x: x != x.strip()).sum()
+                    
+                    # Sample values (first 3 non-null unique values)
+                    sample_values = df[col].dropna().unique()[:3].tolist()
+                    sample_str = ", ".join([f'"{str(val)}"' for val in sample_values])
+                    if len(sample_values) == 3 and unique_count > 3:
+                        sample_str += "..."
+                    
+                    text_overview.append({
+                        'Column': col,
+                        'Non-null Values': non_null_count,
+                        'Unique Values': unique_count,
+                        'Null-like Strings': null_like_count,
+                        'Whitespace Issues': whitespace_issues,
+                        'Sample Values': sample_str
+                    })
+                
+                st.session_state.text_overview = text_overview
+                st.success(f"🔍 Text detection complete! Found {len(text_columns)} text column(s)")
+        
+        # Show results if analysis has been done
+        if st.session_state.text_analysis_done and st.session_state.text_columns:
             st.subheader("📊 Text Data Overview")
             
-            # Create overview of text columns
-            text_overview = []
-            for col in text_columns:
-                non_null_count = df[col].notna().sum()
-                unique_count = df[col].nunique()
-                
-                # Check for null-like strings
-                null_like_patterns = ["NA", "N/A", "na", "n/a", "--", "-", "", "null", "NULL", "Null"]
-                null_like_count = df[col].isin(null_like_patterns).sum()
-                
-                # Check for whitespace issues
-                whitespace_issues = 0
-                if non_null_count > 0:
-                    whitespace_issues = df[col].astype(str).apply(lambda x: x != x.strip()).sum()
-                
-                # Sample values (first 3 non-null unique values)
-                sample_values = df[col].dropna().unique()[:3].tolist()
-                sample_str = ", ".join([f'"{str(val)}"' for val in sample_values])
-                if len(sample_values) == 3 and unique_count > 3:
-                    sample_str += "..."
-                
-                text_overview.append({
-                    'Column': col,
-                    'Non-null Values': non_null_count,
-                    'Unique Values': unique_count,
-                    'Null-like Strings': null_like_count,
-                    'Whitespace Issues': whitespace_issues,
-                    'Sample Values': sample_str
-                })
-            
-            overview_df = pd.DataFrame(text_overview)
+            overview_df = pd.DataFrame(st.session_state.text_overview)
             st.dataframe(overview_df, use_container_width=True)
             
             # Column selection
             st.subheader("🎯 Select Columns to Clean")
             selected_columns = st.multiselect(
                 "Choose which text columns to clean:",
-                options=text_columns,
-                default=text_columns,
+                options=st.session_state.text_columns,
+                default=st.session_state.text_columns,
                 help="Select the columns you want to apply text cleaning to"
             )
             
@@ -1047,8 +1076,11 @@ with right_col:
                             
                         else:
                             st.info("No changes were made during text cleanup with the selected options.")
-            else:
-                st.warning("Please select at least one column to clean.")
+        elif st.session_state.text_analysis_done and not st.session_state.text_columns:
+            st.info("No text columns found in your current dataset. Try running text detection again if you've made changes to your data.")
+        else:
+            st.info("Click 'Run Text Detection' to analyze your dataset and find text columns to clean.")
+        
 #####################################################################################################################################
 # SECTION 8: Clean Column Names
         st.header("8. Clean Column Names")

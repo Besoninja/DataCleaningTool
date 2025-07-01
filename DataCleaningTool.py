@@ -1091,41 +1091,230 @@ with right_col:
         - Remove special characters
         """)
         
-        rename_opts = st.multiselect(
-            "Choose column name cleanup actions:",
-            options=[
-                "Strip whitespace",
-                "Standardize to snake_case",
-                "Remove special characters"
-            ],
-            default=["Strip whitespace", "Standardize to snake_case"]
-        )
+        # Initialize or get column analysis from session state
+        if 'column_analysis_done' not in st.session_state:
+            st.session_state.column_analysis_done = False
+            st.session_state.column_issues = {}
+            st.session_state.current_columns = []
         
-        # Preview cleanup before applying
-        def clean_column_name(name):
+        # Column Analysis Button
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            analyze_button = st.button("🔍 Analyze Column Names", type="secondary")
+        with col2:
+            if st.session_state.column_analysis_done:
+                issues_found = sum(len(issues) for issues in st.session_state.column_issues.values())
+                st.write(f"✅ Analysis complete - {issues_found} issue(s) detected across {len(st.session_state.current_columns)} columns")
+            else:
+                st.write("Click to analyze column names for potential cleanup issues")
+        
+        if analyze_button or not st.session_state.column_analysis_done:
+            # Get current dataframe
+            df = st.session_state.processed_df
+            current_columns = df.columns.tolist()
+            
+            # Analyze column names for issues
+            column_issues = {}
             import re
-            original = name
-            if "Strip whitespace" in rename_opts:
-                name = name.strip()
-            if "Remove special characters" in rename_opts:
-                name = re.sub(r'[^\w\s]', '', name)
-            if "Standardize to snake_case" in rename_opts:
-                name = re.sub(r'\s+', '_', name).lower()
-            return name
+            
+            for col in current_columns:
+                issues = []
+                
+                # Check for whitespace issues
+                if col != col.strip():
+                    issues.append("Leading/trailing whitespace")
+                
+                # Check for special characters
+                if re.search(r'[^\w\s]', col):
+                    special_chars = re.findall(r'[^\w\s]', col)
+                    issues.append(f"Special characters: {', '.join(set(special_chars))}")
+                
+                # Check for inconsistent casing/spacing
+                if not re.match(r'^[a-z][a-z0-9_]*$', col):
+                    if col != col.lower():
+                        issues.append("Mixed case")
+                    if ' ' in col:
+                        issues.append("Contains spaces")
+                    if col.startswith('_') or col.endswith('_'):
+                        issues.append("Leading/trailing underscore")
+                
+                # Check for duplicate after cleaning (will be checked later)
+                column_issues[col] = issues
+            
+            # Store results in session state
+            st.session_state.column_analysis_done = True
+            st.session_state.column_issues = column_issues
+            st.session_state.current_columns = current_columns
+            
+            # Show analysis summary
+            total_issues = sum(len(issues) for issues in column_issues.values())
+            if total_issues > 0:
+                st.warning(f"🚨 Found {total_issues} naming issue(s) across {len([col for col, issues in column_issues.items() if issues])} column(s)")
+            else:
+                st.success("✅ All column names look clean!")
         
-        if st.checkbox("🔍 Show before/after preview"):
-            col_preview = pd.DataFrame({
-                "Original Name": df.columns,
-                "Cleaned Name": [clean_column_name(col) for col in df.columns]
-            })
-            st.dataframe(col_preview)
-        
-        if st.button("Apply Column Name Cleanup"):
-            new_names = [clean_column_name(col) for col in df.columns]
-            df.columns = new_names
-            st.session_state.processed_df = df
-            st.success("✅ Column names cleaned and updated!")
-            st.dataframe(df.head())
+        # Show detailed analysis if completed
+        if st.session_state.column_analysis_done:
+            st.subheader("📊 Column Name Analysis")
+            
+            # Create analysis table
+            analysis_data = []
+            for col in st.session_state.current_columns:
+                issues = st.session_state.column_issues.get(col, [])
+                analysis_data.append({
+                    'Column Name': col,
+                    'Issues Found': len(issues),
+                    'Issue Details': '; '.join(issues) if issues else 'None',
+                    'Length': len(col),
+                    'Data Type': str(st.session_state.processed_df[col].dtype)
+                })
+            
+            analysis_df = pd.DataFrame(analysis_data)
+            
+            # Color code based on issues
+            def highlight_issues(row):
+                if row['Issues Found'] > 0:
+                    return ['background-color: #ffebee'] * len(row)  # Light red
+                else:
+                    return ['background-color: #e8f5e8'] * len(row)  # Light green
+            
+            st.dataframe(
+                analysis_df.style.apply(highlight_issues, axis=1),
+                use_container_width=True
+            )
+            
+            # Show cleanup options only if there are issues or user wants to standardize
+            total_issues = sum(len(issues) for issues in st.session_state.column_issues.values())
+            
+            if total_issues > 0 or st.checkbox("🔧 Show cleanup options anyway"):
+                st.subheader("🛠️ Cleanup Options")
+                
+                rename_opts = st.multiselect(
+                    "Choose column name cleanup actions:",
+                    options=[
+                        "Strip whitespace",
+                        "Remove special characters", 
+                        "Standardize to snake_case"
+                    ],
+                    default=["Strip whitespace", "Remove special characters", "Standardize to snake_case"],
+                    help="Select which cleanup operations to apply to column names"
+                )
+                
+                if rename_opts:
+                    # Preview cleanup
+                    st.subheader("👀 Preview Changes")
+                    
+                    def clean_column_name(name):
+                        import re
+                        cleaned = name
+                        if "Strip whitespace" in rename_opts:
+                            cleaned = cleaned.strip()
+                        if "Remove special characters" in rename_opts:
+                            cleaned = re.sub(r'[^\w\s]', '', cleaned)
+                        if "Standardize to snake_case" in rename_opts:
+                            cleaned = re.sub(r'\s+', '_', cleaned).lower()
+                        return cleaned
+                    
+                    # Create preview dataframe
+                    preview_data = []
+                    changes_count = 0
+                    potential_duplicates = []
+                    cleaned_names = []
+                    
+                    for col in st.session_state.current_columns:
+                        cleaned = clean_column_name(col)
+                        cleaned_names.append(cleaned)
+                        
+                        will_change = col != cleaned
+                        if will_change:
+                            changes_count += 1
+                        
+                        preview_data.append({
+                            'Original Name': col,
+                            'Cleaned Name': cleaned,
+                            'Will Change': '✅ Yes' if will_change else '❌ No',
+                            'Issues Resolved': len(st.session_state.column_issues.get(col, []))
+                        })
+                    
+                    # Check for potential duplicates after cleaning
+                    cleaned_counts = pd.Series(cleaned_names).value_counts()
+                    duplicates = cleaned_counts[cleaned_counts > 1].index.tolist()
+                    
+                    preview_df = pd.DataFrame(preview_data)
+                    
+                    # Highlight rows that will change
+                    def highlight_changes(row):
+                        if row['Will Change'] == '✅ Yes':
+                            return ['background-color: #fff3cd'] * len(row)  # Light yellow
+                        else:
+                            return [''] * len(row)
+                    
+                    st.dataframe(
+                        preview_df.style.apply(highlight_changes, axis=1),
+                        use_container_width=True
+                    )
+                    
+                    # Show summary and warnings
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Columns to be changed", changes_count)
+                    with col2:
+                        st.metric("Issues to be resolved", sum(len(issues) for col, issues in st.session_state.column_issues.items() if col != clean_column_name(col)))
+                    
+                    # Warning for duplicates
+                    if duplicates:
+                        st.error(f"⚠️ **Warning**: The following cleaned names would create duplicates: {', '.join(duplicates)}. Consider adjusting your cleanup options or renaming manually.")
+                    
+                    # Apply button
+                    st.subheader("✅ Apply Changes")
+                    
+                    col1, col2 = st.columns([1, 3])
+                    with col1:
+                        apply_button = st.button("Apply Column Name Cleanup", type="primary", disabled=bool(duplicates))
+                    with col2:
+                        if duplicates:
+                            st.write("⚠️ Cannot apply due to duplicate names")
+                        else:
+                            st.write(f"Will rename {changes_count} column(s)")
+                    
+                    if apply_button and not duplicates:
+                        # Apply the changes
+                        df = st.session_state.processed_df.copy()
+                        old_names = df.columns.tolist()
+                        new_names = [clean_column_name(col) for col in old_names]
+                        
+                        # Create rename mapping
+                        rename_mapping = {old: new for old, new in zip(old_names, new_names) if old != new}
+                        
+                        # Apply rename
+                        df = df.rename(columns=rename_mapping)
+                        st.session_state.processed_df = df
+                        
+                        # Reset analysis state to force re-analysis
+                        st.session_state.column_analysis_done = False
+                        
+                        # Show success message
+                        if rename_mapping:
+                            st.success(f"✅ Column names cleaned! {len(rename_mapping)} column(s) renamed.")
+                            
+                            # Show what was changed
+                            st.write("**Changes made:**")
+                            for old_name, new_name in rename_mapping.items():
+                                st.write(f"• `{old_name}` → `{new_name}`")
+                            
+                            # Show sample of data with new column names
+                            st.write("**Sample of data with new column names:**")
+                            st.dataframe(df.head(), use_container_width=True)
+                        else:
+                            st.info("No column names needed to be changed.")
+                            
+                        # Encourage re-analysis
+                        st.info("💡 Run 'Analyze Column Names' again to verify the cleanup results!")
+            
+            else:
+                st.info("✨ No issues found with your column names. They look good!")
+        else:
+            st.info("Click 'Analyze Column Names' to check your column names for potential issues.")
 
 
 #####################################################################################################################################

@@ -1138,7 +1138,6 @@ with right_col:
                     if col.startswith('_') or col.endswith('_'):
                         issues.append("Leading/trailing underscore")
                 
-                # Check for duplicate after cleaning (will be checked later)
                 column_issues[col] = issues
             
             # Store results in session state
@@ -1157,31 +1156,28 @@ with right_col:
         if st.session_state.column_analysis_done:
             st.subheader("📊 Column Name Analysis")
             
-            # Create analysis table
-            analysis_data = []
-            for col in st.session_state.current_columns:
-                issues = st.session_state.column_issues.get(col, [])
-                analysis_data.append({
-                    'Column Name': col,
-                    'Issues Found': len(issues),
-                    'Issue Details': '; '.join(issues) if issues else 'None',
-                    'Length': len(col),
-                    'Data Type': str(st.session_state.processed_df[col].dtype)
-                })
+            # Show current column names with issues
+            problematic_cols = [col for col, issues in st.session_state.column_issues.items() if issues]
+            clean_cols = [col for col, issues in st.session_state.column_issues.items() if not issues]
             
-            analysis_df = pd.DataFrame(analysis_data)
+            col1, col2 = st.columns(2)
             
-            # Color code based on issues
-            def highlight_issues(row):
-                if row['Issues Found'] > 0:
-                    return ['background-color: #ffebee'] * len(row)  # Light red
+            with col1:
+                st.write("**🚨 Columns with issues:**")
+                if problematic_cols:
+                    for col in problematic_cols:
+                        issues = st.session_state.column_issues[col]
+                        st.write(f"• `{col}` - {', '.join(issues)}")
                 else:
-                    return ['background-color: #e8f5e8'] * len(row)  # Light green
+                    st.write("None")
             
-            st.dataframe(
-                analysis_df.style.apply(highlight_issues, axis=1),
-                use_container_width=True
-            )
+            with col2:
+                st.write("**✅ Clean columns:**")
+                if clean_cols:
+                    for col in clean_cols:
+                        st.write(f"• `{col}`")
+                else:
+                    st.write("None")
             
             # Show cleanup options only if there are issues or user wants to standardize
             total_issues = sum(len(issues) for issues in st.session_state.column_issues.values())
@@ -1215,51 +1211,28 @@ with right_col:
                             cleaned = re.sub(r'\s+', '_', cleaned).lower()
                         return cleaned
                     
-                    # Create preview dataframe
-                    preview_data = []
-                    changes_count = 0
-                    potential_duplicates = []
+                    # Show before/after column names
+                    changes_list = []
                     cleaned_names = []
                     
                     for col in st.session_state.current_columns:
                         cleaned = clean_column_name(col)
                         cleaned_names.append(cleaned)
+                        if col != cleaned:
+                            changes_list.append((col, cleaned))
+                    
+                    if changes_list:
+                        st.write("**Column name changes:**")
+                        for original, cleaned in changes_list:
+                            st.write(f"• `{original}` → `{cleaned}`")
                         
-                        will_change = col != cleaned
-                        if will_change:
-                            changes_count += 1
-                        
-                        preview_data.append({
-                            'Original Name': col,
-                            'Cleaned Name': cleaned,
-                            'Will Change': '✅ Yes' if will_change else '❌ No',
-                            'Issues Resolved': len(st.session_state.column_issues.get(col, []))
-                        })
+                        st.write(f"**Summary:** {len(changes_list)} out of {len(st.session_state.current_columns)} columns will be renamed")
+                    else:
+                        st.info("No column names will be changed with the selected options.")
                     
                     # Check for potential duplicates after cleaning
                     cleaned_counts = pd.Series(cleaned_names).value_counts()
                     duplicates = cleaned_counts[cleaned_counts > 1].index.tolist()
-                    
-                    preview_df = pd.DataFrame(preview_data)
-                    
-                    # Highlight rows that will change
-                    def highlight_changes(row):
-                        if row['Will Change'] == '✅ Yes':
-                            return ['background-color: #fff3cd'] * len(row)  # Light yellow
-                        else:
-                            return [''] * len(row)
-                    
-                    st.dataframe(
-                        preview_df.style.apply(highlight_changes, axis=1),
-                        use_container_width=True
-                    )
-                    
-                    # Show summary and warnings
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.metric("Columns to be changed", changes_count)
-                    with col2:
-                        st.metric("Issues to be resolved", sum(len(issues) for col, issues in st.session_state.column_issues.items() if col != clean_column_name(col)))
                     
                     # Warning for duplicates
                     if duplicates:
@@ -1275,7 +1248,7 @@ with right_col:
                         if duplicates:
                             st.write("⚠️ Cannot apply due to duplicate names")
                         else:
-                            st.write(f"Will rename {changes_count} column(s)")
+                            st.write(f"Will rename {len(changes_list)} column(s)")
                     
                     if apply_button and not duplicates:
                         # Apply the changes
@@ -1301,10 +1274,6 @@ with right_col:
                             st.write("**Changes made:**")
                             for old_name, new_name in rename_mapping.items():
                                 st.write(f"• `{old_name}` → `{new_name}`")
-                            
-                            # Show sample of data with new column names
-                            st.write("**Sample of data with new column names:**")
-                            st.dataframe(df.head(), use_container_width=True)
                         else:
                             st.info("No column names needed to be changed.")
                             
@@ -1316,7 +1285,7 @@ with right_col:
         else:
             st.info("Click 'Analyze Column Names' to check your column names for potential issues.")
 
-
+    
 #####################################################################################################################################
 # SECTION 9: Impute Missing Values
         st.header("9. Impute Missing Values")

@@ -1160,7 +1160,7 @@ with right_col:
             problematic_cols = [col for col, issues in st.session_state.column_issues.items() if issues]
             clean_cols = [col for col, issues in st.session_state.column_issues.items() if not issues]
             
-            col1, col2 = st.columns(2)
+            col2, col1 = st.columns(2)
             
             with col1:
                 st.write("**🚨 Columns with issues:**")

@@ -406,8 +406,8 @@ if st.session_state.selected_section == "File Upload":
         if st.session_state.processed_df is None:
             st.session_state.processed_df = pd.read_csv(uploaded_file)
         df = st.session_state.processed_df
-        st.success("File successfully uploaded.
-        Please click a section on the left to start cleaning your data!")
+        st.success("File successfully uploaded."
+        "Please choose a section from the left column to start cleaning your data!")
         
 #####################################################################################################################################
 # SECTION 2: Data Overview

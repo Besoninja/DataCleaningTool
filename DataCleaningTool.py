@@ -364,22 +364,6 @@ def apply_conversions(df, conversion_choices):
 with st.sidebar:
     st.title("🛠️ Data Cleaning Tool")
     
-    # Enhanced Info Table Section (always visible in sidebar)
-    st.subheader("📊 Data Overview")
-    
-    # Button to refresh Enhanced Info Table
-    if st.button("🔄 Refresh Info Table", use_container_width=True):
-        pass  # Triggers rerun automatically
-    
-    # Show enhanced info table if data exists
-    if st.session_state.processed_df is not None:
-        info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
-        st.dataframe(info_df, height=300, use_container_width=True)
-    else:
-        st.info("No data loaded yet.")
-    
-    st.divider()
-    
     # Navigation Menu
     st.subheader("🎯 Select Section")
     
@@ -394,7 +378,7 @@ with st.sidebar:
         "Clean Text Data",
         "Clean Column Names",
         "Impute Missing Values",
-        "Download Data"
+        "Download Processed Data"
     ]
     
     # Create navigation buttons
@@ -413,6 +397,7 @@ st.header(f"📋 {st.session_state.selected_section}")
 
 #####################################################################################################################################
 # SECTION 1: File Upload Section
+if st.session_state.selected_section == "File Upload":
     st.header("1. Upload Data")
     uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
@@ -425,7 +410,20 @@ st.header(f"📋 {st.session_state.selected_section}")
         
 #####################################################################################################################################
 # SECTION 2: Data Overview
-        st.header("2. Data Overview")
+elif st.session_state.selected_section == "Data Overview":
+    st.header("2. Data Overview")
+    
+    # Enhanced Information Table
+    st.subheader("Enhanced Information Table")
+    # Button to refresh Enhanced Info Table - pressing it causes a rerun
+    if st.button("Refresh Enhanced Info Table"):
+        pass  # No action needed; button press triggers a rerun automatically
+
+    if st.session_state.processed_df is not None:
+        info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
+        st.dataframe(info_df, height=600)
+    else:
+        st.write("No data loaded yet.")
         st.write(f"Dataset Shape: {df.shape[0]} rows and {df.shape[1]} columns")
         
         st.subheader("First Five Rows")
@@ -451,6 +449,7 @@ st.header(f"📋 {st.session_state.selected_section}")
         
 #####################################################################################################################################
 # SECTION 3: Identify and Clean Mixed-Type Columns
+elif st.session_state.selected_section == "Mixed-Type Columns":
         st.header("3. Resolve Data Type Conflicts")
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.
@@ -631,6 +630,7 @@ st.header(f"📋 {st.session_state.selected_section}")
                 
 #####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
+elif st.session_state.selected_section == "Object Conversion":
         st.header("4. Smart Object Column Conversion")
         st.markdown("Automatically detect and convert object columns to their appropriate data types.")
         if st.button("🔍 Analyze Object Columns"):
@@ -762,6 +762,7 @@ st.header(f"📋 {st.session_state.selected_section}")
                 st.info("No float columns are safely convertible to integers.")
 #####################################################################################################################################
 # SECTION 5: Optimize for Analysis
+elif st.session_state.selected_section == "Optimize Analysis":
         st.header("5. Optimize for Analysis")
         st.markdown("""
         Final optimization for memory and performance:
@@ -789,6 +790,7 @@ st.header(f"📋 {st.session_state.selected_section}")
 
 #####################################################################################################################################
 # SECTION 6: Detect and Handle Outliers
+elif st.session_state.selected_section == "Handle Outliers":
         st.header("6. Detect and Handle Outliers")
         with st.expander("ℹ️ What are outliers and how does this work?"):
             st.markdown("""
@@ -889,6 +891,7 @@ st.header(f"📋 {st.session_state.selected_section}")
 
 #####################################################################################################################################
 # SECTION 7: Clean and Normalize Text Data
+elif st.session_state.selected_section == "Clean Text Data":
         st.header("7. Clean and Normalize Text Data")
         st.markdown("""
         Clean up string contents to reduce noise and standardize formatting:
@@ -1120,6 +1123,7 @@ st.header(f"📋 {st.session_state.selected_section}")
         
 #####################################################################################################################################
 # SECTION 8: Clean Column Names
+elif st.session_state.selected_section == "Clean Column Names":
         st.header("8. Clean Column Names")
         st.markdown("""
         Fix inconsistent column naming:
@@ -1325,6 +1329,7 @@ st.header(f"📋 {st.session_state.selected_section}")
     
 #####################################################################################################################################
 # SECTION 9: Impute Missing Values
+elif st.session_state.selected_section == "Impute Missing Values":
         st.header("9. Impute Missing Values")
         
         if 'impute_log' not in st.session_state:
@@ -1502,6 +1507,7 @@ st.header(f"📋 {st.session_state.selected_section}")
 
 #####################################################################################################################################            
 # SECTION 10: Download Processed Data
+elif st.session_state.selected_section == "Download Processed Data":
         st.header("10. Download Processed Data")
         
         df = st.session_state.processed_df

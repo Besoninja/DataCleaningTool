@@ -418,17 +418,19 @@ elif st.session_state.selected_section == "Data Overview":
     # Button to refresh Enhanced Info Table - pressing it causes a rerun
     if st.button("Refresh Enhanced Info Table"):
         pass  # No action needed; button press triggers a rerun automatically
-
+    
     if st.session_state.processed_df is not None:
         info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
         st.dataframe(info_df, height=600)
-    else:
-        st.write("No data loaded yet.")
+        
+        # Get the dataframe for the rest of the section
+        df = st.session_state.processed_df
+        
         st.write(f"Dataset Shape: {df.shape[0]} rows and {df.shape[1]} columns")
         
         st.subheader("First Five Rows")
         st.dataframe(df.head())
-
+        
         # Missing Values Summary
         st.subheader("Missing Values Summary")
         missing_summary = df.isnull().sum()
@@ -441,11 +443,12 @@ elif st.session_state.selected_section == "Data Overview":
                 'Missing %': missing_percent.map(lambda x: f"{x:.2f}%"),
                 'Data Type': [df[col].dtype.name for col in missing_summary.index]
             })
-
             st.write(f"Total Missing Value Proportion: {(df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100:.2f}%")
             st.dataframe(summary_df)
         else:
             st.success("🎉 No missing values found in your dataset.")
+    else:
+        st.write("No data loaded yet.")
         
 #####################################################################################################################################
 # SECTION 3: Identify and Clean Mixed-Type Columns

@@ -421,7 +421,9 @@ elif st.session_state.selected_section == "Data Overview":
     
     if st.session_state.processed_df is not None:
         info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
-        st.dataframe(info_df, height=600)
+        # Calculate dynamic height: header + (rows * row_height) + padding
+        dynamic_height = min(38 + (len(info_df) * 35) + 10, 600)  # Cap at 600px max
+        st.dataframe(info_df, height=dynamic_height)
         
         # Get the dataframe for the rest of the section
         df = st.session_state.processed_df

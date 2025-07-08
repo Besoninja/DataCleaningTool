@@ -413,13 +413,13 @@ if st.session_state.selected_section == "File Upload":
 elif st.session_state.selected_section == "Data Overview":
     st.header("2. Data Overview")
     
-    # Enhanced Information Table
-    st.subheader("Enhanced Information Table")
-    # Button to refresh Enhanced Info Table - pressing it causes a rerun
-    if st.button("Refresh Enhanced Info Table"):
+    # Button to refresh all data overview content
+    if st.button("🔄 Refresh Data Overview", use_container_width=True):
         pass  # No action needed; button press triggers a rerun automatically
     
     if st.session_state.processed_df is not None:
+        # Enhanced Information Table
+        st.subheader("Enhanced Information Table")
         info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
         # Calculate dynamic height: header + (rows * row_height) + padding
         dynamic_height = min(38 + (len(info_df) * 35) + 10, 600)  # Cap at 600px max

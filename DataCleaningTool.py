@@ -28,6 +28,8 @@ if 'incorrect_entries_analysis' not in st.session_state:
     st.session_state.incorrect_entries_analysis = None
 if 'processed_columns' not in st.session_state:
     st.session_state.processed_columns = set()
+if 'selected_section' not in st.session_state:
+    st.session_state.selected_section = 'File Upload'
 
 #####################################################################################################################################
 ### Functions ###

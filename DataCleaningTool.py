@@ -358,22 +358,57 @@ def apply_conversions(df, conversion_choices):
 ### Code ###
 #####################################################################################################################################
 
-# Layout: two columns
-left_col, right_col = st.columns([1, 4], gap="medium")
-
-with left_col:
-    st.subheader("Enhanced Information Table")
-    # Button to refresh Enhanced Info Table - pressing it causes a rerun
-    if st.button("Refresh Enhanced Info Table"):
-        pass  # No action needed; button press triggers a rerun automatically
-
+# Sidebar Navigation
+with st.sidebar:
+    st.title("🛠️ Data Cleaning Tool")
+    
+    # Enhanced Info Table Section (always visible in sidebar)
+    st.subheader("📊 Data Overview")
+    
+    # Button to refresh Enhanced Info Table
+    if st.button("🔄 Refresh Info Table", use_container_width=True):
+        pass  # Triggers rerun automatically
+    
+    # Show enhanced info table if data exists
     if st.session_state.processed_df is not None:
         info_df, columns_with_missing = generate_enhanced_information_table(st.session_state.processed_df)
-        st.dataframe(info_df, height=600)
+        st.dataframe(info_df, height=300, use_container_width=True)
     else:
-        st.write("No data loaded yet.")
+        st.info("No data loaded yet.")
+    
+    st.divider()
+    
+    # Navigation Menu
+    st.subheader("🎯 Select Section")
+    
+    # Define sections
+    sections = [
+        "File Upload",
+        "Data Overview", 
+        "Mixed-Type Columns",
+        "Object Conversion",
+        "Optimize Analysis",
+        "Handle Outliers",
+        "Clean Text Data",
+        "Clean Column Names",
+        "Impute Missing Values",
+        "Download Data"
+    ]
+    
+    # Create navigation buttons
+    for section in sections:
+        if st.button(
+            section,
+            key=f"nav_{section}",
+            use_container_width=True,
+            type="primary" if st.session_state.selected_section == section else "secondary"
+        ):
+            st.session_state.selected_section = section
+            st.rerun()
 
-with right_col:
+# Main Content Area
+st.header(f"📋 {st.session_state.selected_section}")
+
 #####################################################################################################################################
 # SECTION 1: File Upload Section
     st.header("1. Upload Data")

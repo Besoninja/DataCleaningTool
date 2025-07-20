@@ -456,6 +456,7 @@ elif st.session_state.selected_section == "Data Overview":
 #####################################################################################################################################
 # SECTION 3: Identify and Clean Mixed-Type Columns
 elif st.session_state.selected_section == "Mixed-Type Columns":
+        df = st.session_state.df
         st.header("3. Resolve Data Type Conflicts")
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.

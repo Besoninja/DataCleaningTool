@@ -359,7 +359,14 @@ def apply_conversions(df, conversion_choices):
 #####################################################################################################################################
 ### Code ###
 #####################################################################################################################################
+# Initialize session state variables
+if 'selected_section' not in st.session_state:
+    st.session_state.selected_section = "File Upload"  # Default section
 
+if 'processed_df' not in st.session_state:
+    st.session_state.processed_df = None
+    
+#####################################################################################################################################
 # Sidebar Navigation
 with st.sidebar:
     st.title("🛠️ Data Cleaning Tool")
@@ -456,7 +463,6 @@ elif st.session_state.selected_section == "Data Overview":
 #####################################################################################################################################
 # SECTION 3: Identify and Clean Mixed-Type Columns
 elif st.session_state.selected_section == "Mixed-Type Columns":
-        df = st.session_state.df
         st.header("3. Resolve Data Type Conflicts")
         st.markdown("""
         This step scans for columns that contain a mix of numeric and string values, which can break analysis or machine learning workflows.

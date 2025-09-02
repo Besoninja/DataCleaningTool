@@ -412,19 +412,6 @@ with st.sidebar:
 st.header(f"📋 {st.session_state.selected_section}")
 
 #####################################################################################################################################
-"""# SECTION 1: File Upload Section
-if st.session_state.selected_section == "File Upload":
-    st.header("1. Upload Data")
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-
-    if uploaded_file is not None:
-        # Load data if not already loaded
-        if st.session_state.processed_df is None:
-            st.session_state.processed_df = pd.read_csv(uploaded_file)
-        df = st.session_state.processed_df
-        st.success("File successfully uploaded!")
-        st.info("💡 Please choose a section from the left column to start cleaning your data!")
-"""
 # SECTION 1: File Upload Section
 if st.session_state.selected_section == "File Upload":
     st.header("1. Upload Data")

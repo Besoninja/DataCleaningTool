@@ -32,7 +32,11 @@ if 'selected_section' not in st.session_state:
     st.session_state.selected_section = 'File Upload'
 
 #####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
 ### Functions ###
+#####################################################################################################################################
+#####################################################################################################################################
 #####################################################################################################################################
 
 def generate_enhanced_information_table(dataframe):
@@ -355,10 +359,15 @@ def apply_conversions(df, conversion_choices):
                 st.error(f"Failed to convert {col} to string: {str(e)}")
     
     return df_copy, conversion_results
-
+    
+#####################################################################################################################################
+#####################################################################################################################################
 #####################################################################################################################################
 ### Code ###
 #####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
+
 # Initialize session state variables
 if 'selected_section' not in st.session_state:
     st.session_state.selected_section = "File Upload"  # Default section
@@ -403,6 +412,19 @@ with st.sidebar:
 st.header(f"📋 {st.session_state.selected_section}")
 
 #####################################################################################################################################
+"""# SECTION 1: File Upload Section
+if st.session_state.selected_section == "File Upload":
+    st.header("1. Upload Data")
+    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+
+    if uploaded_file is not None:
+        # Load data if not already loaded
+        if st.session_state.processed_df is None:
+            st.session_state.processed_df = pd.read_csv(uploaded_file)
+        df = st.session_state.processed_df
+        st.success("File successfully uploaded!")
+        st.info("💡 Please choose a section from the left column to start cleaning your data!")
+"""
 # SECTION 1: File Upload Section
 if st.session_state.selected_section == "File Upload":
     st.header("1. Upload Data")
@@ -414,6 +436,21 @@ if st.session_state.selected_section == "File Upload":
             st.session_state.processed_df = pd.read_csv(uploaded_file)
         df = st.session_state.processed_df
         st.success("File successfully uploaded!")
+        
+        # Add the Enhanced Information Table and dataset shape here
+        st.subheader("Dataset Overview")
+        st.write(f"**Dataset Shape:** {df.shape[0]} rows and {df.shape[1]} columns")
+        
+        st.subheader("Enhanced Information Table")
+        info_df, columns_with_missing = generate_enhanced_information_table(df)
+        # Calculate dynamic height based on number of columns
+        dynamic_height = min(38 + (len(info_df) * 35) + 10, 400)  # Cap at 400px for initial view
+        st.dataframe(info_df, height=dynamic_height, use_container_width=True)
+        
+        # Show warning if there are columns with missing values
+        if columns_with_missing:
+            st.warning(f"⚠️ Found {len(columns_with_missing)} column(s) with missing values")
+        
         st.info("💡 Please choose a section from the left column to start cleaning your data!")
         
 #####################################################################################################################################

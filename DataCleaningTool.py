@@ -436,7 +436,7 @@ if st.session_state.selected_section == "File Upload":
         
         # Show warning if there are columns with missing values
         if columns_with_missing:
-            st.warning(f"⚠️ Found {len(columns_with_missing)} column(s) with missing values")
+            st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
         
         st.info("To start cleaning your data please make a selection from the left column") 
         
@@ -450,7 +450,7 @@ elif st.session_state.selected_section == "Data Overview":
     st.header("2. Data Overview")
     
     # Button to refresh all data overview content
-    if st.button("🔄 Refresh Data Overview", use_container_width=True):
+    if st.button("Refresh Data Overview", use_container_width=True):
         pass  # No action needed; button press triggers a rerun automatically
     
     if st.session_state.processed_df is not None:
@@ -484,7 +484,7 @@ elif st.session_state.selected_section == "Data Overview":
             st.write(f"Total Missing Value Proportion: {(df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100:.2f}%")
             st.dataframe(summary_df)
         else:
-            st.success("🎉 No missing values found in your dataset.")
+            st.success("No missing values found in your dataset.")
     else:
         st.write("No data loaded yet.")
         
@@ -601,7 +601,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
     if 'mixed_cols' in st.session_state:
         mixed_cols = st.session_state.mixed_cols
         if mixed_cols:
-            st.subheader("🧪 Mixed-Type Columns Found")
+            st.subheader("Mixed-Type Columns Found")
             
             for col, info in mixed_cols.items():
                 with st.expander(f"🔧 Column: '{col}' - {info['numeric_count']} numeric, {info['string_count']} string values", expanded=True):
@@ -689,7 +689,7 @@ elif st.session_state.selected_section == "Object Conversion":
         suggestions = st.session_state.object_suggestions
         
         if suggestions:
-            st.subheader("📊 Column Analysis Results")
+            st.subheader("Column Analysis Results")
             
             conversion_choices = {}
             
@@ -836,7 +836,7 @@ elif st.session_state.selected_section == "Optimize Analysis":
         if downcast_nums:
             for col in df.select_dtypes(include=['int64', 'float64']):
                 df[col] = pd.to_numeric(df[col], downcast='unsigned' if df[col].min() >= 0 else 'integer')
-                st.write(f"✅ {col}: downcasted for memory optimization")
+                st.write(f"{col}: downcasted for memory optimization")
     
         st.session_state.processed_df = df
         st.success("Optimization complete!")
@@ -875,7 +875,7 @@ elif st.session_state.selected_section == "Handle Outliers":
            - **Drop rows**: Completely removes rows containing outliers
            - **Skip**: Leave the outliers as-is for now
         
-        💡 **Tip**: Start with the default multiplier of 1.5. You can always run this multiple times with different settings.
+         **Tip**: Start with the default multiplier of 1.5. You can always run this multiple times with different settings.
         """)
     
     iqr_threshold = st.slider(
@@ -1164,7 +1164,7 @@ elif st.session_state.selected_section == "Clean Text Data":
                     
                     # Show results
                     if changes_summary:
-                        st.success(f"✅ Text cleanup completed! Modified {len(changes_summary)} column(s)")
+                        st.success(f"Text cleanup completed! Modified {len(changes_summary)} column(s)")
                         
                         # Detailed summary
                         st.write("**Changes made:**")
@@ -1210,7 +1210,7 @@ elif st.session_state.selected_section == "Clean Column Names":
     with col2:
         if st.session_state.column_analysis_done:
             issues_found = sum(len(issues) for issues in st.session_state.column_issues.values())
-            st.write(f"✅ Analysis complete - {issues_found} issue(s) detected across {len(st.session_state.current_columns)} columns")
+            st.write(f"Analysis complete - {issues_found} issue(s) detected across {len(st.session_state.current_columns)} columns")
         else:
             st.write("Click to analyze column names for potential cleanup issues")
     
@@ -1254,13 +1254,13 @@ elif st.session_state.selected_section == "Clean Column Names":
         # Show analysis summary
         total_issues = sum(len(issues) for issues in column_issues.values())
         if total_issues > 0:
-            st.warning(f"🚨 Found {total_issues} naming issue(s) across {len([col for col, issues in column_issues.items() if issues])} column(s)")
+            st.warning(f"Found {total_issues} naming issue(s) across {len([col for col, issues in column_issues.items() if issues])} column(s)")
         else:
-            st.success("✅ All column names look clean!")
+            st.success("All column names look clean!")
     
     # Show detailed analysis if completed
     if st.session_state.column_analysis_done:
-        st.subheader("📊 Column Name Analysis")
+        st.subheader("Column Name Analysis")
         
         # Show current column names with issues
         problematic_cols = [col for col, issues in st.session_state.column_issues.items() if issues]
@@ -1269,7 +1269,7 @@ elif st.session_state.selected_section == "Clean Column Names":
         col2, col1 = st.columns(2)
         
         with col1:
-            st.write("**🚨 Columns with issues:**")
+            st.write("**Columns with issues:**")
             if problematic_cols:
                 for col in problematic_cols:
                     issues = st.session_state.column_issues[col]
@@ -1278,7 +1278,7 @@ elif st.session_state.selected_section == "Clean Column Names":
                 st.write("None")
         
         with col2:
-            st.write("**✅ Clean columns:**")
+            st.write("**Clean columns:**")
             if clean_cols:
                 for col in clean_cols:
                     st.write(f"• `{col}`")
@@ -1289,7 +1289,7 @@ elif st.session_state.selected_section == "Clean Column Names":
         total_issues = sum(len(issues) for issues in st.session_state.column_issues.values())
         
         if total_issues > 0 or st.checkbox("🔧 Show cleanup options anyway"):
-            st.subheader("🛠️ Cleanup Options")
+            st.subheader("Cleanup Options")
             
             rename_opts = st.multiselect(
                 "Choose column name cleanup actions:",
@@ -1304,7 +1304,7 @@ elif st.session_state.selected_section == "Clean Column Names":
             
             if rename_opts:
                 # Preview cleanup
-                st.subheader("👀 Preview Changes")
+                st.subheader("Preview Changes")
                 
                 def clean_column_name(name):
                     import re
@@ -1342,17 +1342,17 @@ elif st.session_state.selected_section == "Clean Column Names":
                 
                 # Warning for duplicates
                 if duplicates:
-                    st.error(f"⚠️ **Warning**: The following cleaned names would create duplicates: {', '.join(duplicates)}. Consider adjusting your cleanup options or renaming manually.")
+                    st.error(f"**Warning**: The following cleaned names would create duplicates: {', '.join(duplicates)}. Consider adjusting your cleanup options or renaming manually.")
                 
                 # Apply button
-                st.subheader("✅ Apply Changes")
+                st.subheader("Apply Changes")
                 
                 col1, col2 = st.columns([1, 3])
                 with col1:
                     apply_button = st.button("Apply Column Name Cleanup", type="primary", disabled=bool(duplicates))
                 with col2:
                     if duplicates:
-                        st.write("⚠️ Cannot apply due to duplicate names")
+                        st.write("Cannot apply due to duplicate names")
                     else:
                         st.write(f"Will rename {len(changes_list)} column(s)")
                 
@@ -1374,7 +1374,7 @@ elif st.session_state.selected_section == "Clean Column Names":
                     
                     # Show success message
                     if rename_mapping:
-                        st.success(f"✅ Column names cleaned! {len(rename_mapping)} column(s) renamed.")
+                        st.success(f"Column names cleaned! {len(rename_mapping)} column(s) renamed.")
                         
                         # Show what was changed
                         st.write("**Changes made:**")
@@ -1384,10 +1384,10 @@ elif st.session_state.selected_section == "Clean Column Names":
                         st.info("No column names needed to be changed.")
                         
                     # Encourage re-analysis
-                    st.info("💡 Run 'Analyze Column Names' again to verify the cleanup results!")
+                    st.info("Run 'Analyze Column Names' again to verify the cleanup results!")
         
         else:
-            st.info("✨ No issues found with your column names. They look good!")
+            st.info("No issues found with your column names. They look good!")
     else:
         st.info("Click 'Analyze Column Names' to check your column names for potential issues.")
 
@@ -1425,7 +1425,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 initial_rows = df.shape[0]
                 df = df[df.isnull().mean(axis=1) < 0.5]
                 st.session_state.processed_df = df
-                st.success(f"✅ Dropped {initial_rows - df.shape[0]} rows.")
+                st.success(f"Dropped {initial_rows - df.shape[0]} rows.")
                 st.dataframe(df.head())
     
             missing_columns = df.columns[df.isnull().any()]
@@ -1451,21 +1451,21 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
             method_descriptions = {
                 # Simple & categorical
-                "Mean": "👉 Replaces missing values with the average of the column. Best for continuous data without extreme outliers.",
-                "Median": "👉 Replaces missing values with the median (middle) value. Robust to outliers.",
-                "Mode": "👉 Replaces missing values with the most frequently occurring value.",
-                "Fill with 'NA' (string literal)": "👉 Inserts the string 'NA' into missing cells. Best for text columns where 'NA' is meaningful.",
-                "Fill with custom value": "👉 Lets you manually enter any value to replace missing cells.",
-                "Forward Fill (LOCF)": "👉 Carries the last known value forward. Good for time-series or ordered data.",
-                "Backward Fill (NOCB)": "👉 Pulls the next valid value backward. Also useful in ordered datasets.",
+                "Mean": "Replaces missing values with the average of the column. Best for continuous data without extreme outliers.",
+                "Median": "Replaces missing values with the median (middle) value. Robust to outliers.",
+                "Mode": "Replaces missing values with the most frequently occurring value.",
+                "Fill with 'NA' (string literal)": "Inserts the string 'NA' into missing cells. Best for text columns where 'NA' is meaningful.",
+                "Fill with custom value": "Lets you manually enter any value to replace missing cells.",
+                "Forward Fill (LOCF)": "Carries the last known value forward. Good for time-series or ordered data.",
+                "Backward Fill (NOCB)": "Pulls the next valid value backward. Also useful in ordered datasets.",
                 # Advanced
-                "KNN Imputer": "🔍 Finds the 'k' most similar rows and uses their values to fill in the blanks. Great when patterns exist across columns.",
-                "Linear Regression": "📈 Uses other numeric columns to predict the missing value using a regression model.",
-                "Iterative Imputer (MICE)": "🔁 Models each column as a function of the others and iteratively predicts missing values.",
-                "MissForest (Random Forest)": "🌲 Uses random forests to fill missing values non-linearly. Very powerful, slower to run.",
-                "Interpolation": "📉 Connects the dots in numeric data (linear/spline interpolation). Good for time-continuous data.",
-                "Expectation Maximization (EM)": "📊 A statistical technique that guesses likely values. Not implemented.",
-                "Bayesian Imputation": "🧠 Samples values from a posterior probability distribution. Not implemented here."
+                "KNN Imputer": "Finds the 'k' most similar rows and uses their values to fill in the blanks. Great when patterns exist across columns.",
+                "Linear Regression": "Uses other numeric columns to predict the missing value using a regression model.",
+                "Iterative Imputer (MICE)": "Models each column as a function of the others and iteratively predicts missing values.",
+                "MissForest (Random Forest)": "Uses random forests to fill missing values non-linearly. Very powerful, slower to run.",
+                "Interpolation": "Connects the dots in numeric data (linear/spline interpolation). Good for time-continuous data.",
+                "Expectation Maximization (EM)": "A statistical technique that guesses likely values. Not implemented.",
+                "Bayesian Imputation": "Samples values from a posterior probability distribution. Not implemented here."
             }
     
             if impute_mode == "Simple":
@@ -1477,7 +1477,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
             selected_method = st.selectbox("Choose your imputation method", methods)
     
-            with st.expander("ℹ️ What this method does"):
+            with st.expander("What this method does"):
                 st.markdown(method_descriptions.get(selected_method, "No description available."))
     
             if selected_method == "Fill with custom value":
@@ -1518,7 +1518,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                                 df.loc[df[col].isnull(), col] = model.predict(X_missing)
                         elif selected_method == "Iterative Imputer (MICE)":
                             if IterativeImputer is None:
-                                st.error("❌ IterativeImputer not available in this sklearn version.")
+                                st.error("IterativeImputer not available in this sklearn version.")
                             else:
                                 imp = IterativeImputer(random_state=0)
                                 df[df.columns] = imp.fit_transform(df)
@@ -1529,24 +1529,24 @@ elif st.session_state.selected_section == "Impute Missing Values":
                             mf = MissForest()
                             df[df.columns] = mf.fit_transform(df)
                         elif selected_method == "Expectation Maximization (EM)":
-                            st.warning("⚠️ EM not implemented. Requires `fancyimpute`.")
+                            st.warning("EM not implemented. Requires `fancyimpute`.")
                         elif selected_method == "Bayesian Imputation":
-                            st.warning("⚠️ Bayesian imputation requires `pymc` and is not implemented.")
+                            st.warning("Bayesian imputation requires `pymc` and is not implemented.")
                         else:
-                            st.error("❌ Unknown imputation method.")
+                            st.error("Unknown imputation method.")
                     except Exception as e:
-                        st.error(f"⚠️ Failed to apply imputation: {e}")
+                        st.error(f"Failed to apply imputation: {e}")
     
                 if apply_all:
                     applicable_columns = [col for col in missing_columns if df[col].dtype == df[selected_column].dtype]
                     for col in applicable_columns:
                         apply_imputation(col)
                         st.session_state.impute_log.append((col, selected_method))
-                    st.success(f"✅ Applied {selected_method} to all {len(applicable_columns)} applicable columns.")
+                    st.success(f"Applied {selected_method} to all {len(applicable_columns)} applicable columns.")
                 else:
                     apply_imputation(selected_column)
                     st.session_state.impute_log.append((selected_column, selected_method))
-                    st.success(f"✅ Applied {selected_method} to '{selected_column}'.")
+                    st.success(f"Applied {selected_method} to '{selected_column}'.")
     
                 st.session_state.processed_df = df
                 st.subheader("Updated Data Preview")
@@ -1558,13 +1558,13 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     df = st.session_state.processed_df
                     if st.session_state.impute_log:
                         undone = st.session_state.impute_log.pop()
-                        st.success(f"🔄 Undid imputation: {undone[1]} on '{undone[0]}'")
+                        st.success(f"Undid imputation: {undone[1]} on '{undone[0]}'")
                     else:
-                        st.info("ℹ️ No previous imputation to undo.")
+                        st.info( No previous imputation to undo.")
                 else:
-                    st.warning("⚠️ No backup available to undo.")
+                    st.warning("No backup available to undo.")
     
-            with st.expander("🧾 Imputation Log"):
+            with st.expander("Imputation Log"):
                 if st.session_state.impute_log:
                     for idx, (col, method) in enumerate(reversed(st.session_state.impute_log[-10:]), 1):
                         st.write(f"{idx}. Column: **{col}**, Method: **{method}**")
@@ -1589,7 +1589,7 @@ elif st.session_state.selected_section == "Download Processed Data":
         st.markdown(f"Your cleaned dataset has **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
         
         if st.button("Show Final Data Preview"):
-            st.subheader("📋 Final Data Preview")
+            st.subheader("Final Data Preview")
             st.dataframe(df.head())
     
         file_format = st.radio("Choose download format", ["CSV", "Excel (.xlsx)"], horizontal=True)
@@ -1597,7 +1597,7 @@ elif st.session_state.selected_section == "Download Processed Data":
         if file_format == "CSV":
             csv_data = df.to_csv(index=False).encode("utf-8")
             st.download_button(
-                label="⬇️ Download CSV File",
+                label="Download CSV File",
                 data=csv_data,
                 file_name="cleaned_data.csv",
                 mime="text/csv"
@@ -1609,7 +1609,7 @@ elif st.session_state.selected_section == "Download Processed Data":
                 df.to_excel(writer, index=False, sheet_name='CleanedData')
                 writer.save()
             st.download_button(
-                label="⬇️ Download Excel File",
+                label="Download Excel File",
                 data=output.getvalue(),
                 file_name="cleaned_data.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"

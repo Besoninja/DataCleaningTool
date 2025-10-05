@@ -378,10 +378,10 @@ if 'processed_df' not in st.session_state:
 #####################################################################################################################################
 # Sidebar Navigation
 with st.sidebar:
-    st.title("🛠️ Data Cleaning Tool")
+    st.title("Data Cleaning Tool")
     
     # Navigation Menu
-    st.subheader("🎯 Select Section")
+    st.subheader("Select Section")
     
     # Define sections
     sections = [
@@ -409,7 +409,7 @@ with st.sidebar:
             st.rerun()
 
 # Main Content Area
-st.header(f"📋 {st.session_state.selected_section}")
+st.header(f"{st.session_state.selected_section}")
 
 #####################################################################################################################################
 # SECTION 1: File Upload Section
@@ -438,7 +438,7 @@ if st.session_state.selected_section == "File Upload":
         if columns_with_missing:
             st.warning(f"⚠️ Found {len(columns_with_missing)} column(s) with missing values")
         
-        st.info("💡 Please choose a section from the left column to start cleaning your data!")
+        st.info("To start cleaning your data please make a selection from the left column") 
         
 #####################################################################################################################################
 # SECTION 2: Data Overview
@@ -609,18 +609,18 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                     col1, col2 = st.columns([1, 1])
                     
                     with col1:
-                        st.write("**📊 Breakdown:**")
-                        st.write(f"🔢 Numeric: {info['numeric_ratio']:.1f}% ({info['numeric_count']} values)")
-                        st.write(f"📝 String: {info['string_ratio']:.1f}% ({info['string_count']} values)")
+                        st.write("**Breakdown:**")
+                        st.write(f"Numeric: {info['numeric_ratio']:.1f}% ({info['numeric_count']} values)")
+                        st.write(f"String: {info['string_ratio']:.1f}% ({info['string_count']} values)")
                         
-                        st.write("**🔢 Sample numeric values:**")
+                        st.write("**Sample numeric values:**")
                         st.code(str(info['numeric_examples']))
                         
-                        st.write("**📝 Sample string values:**")
+                        st.write("**Sample string values:**")
                         st.code(str(info['string_examples']))
                     
                     with col2:
-                        st.write("**🎯 Choose Resolution Strategy:**")
+                        st.write("**Choose Resolution Strategy:**")
                         
                         # Determine default based on dominant type
                         default_strategy = "remove_strings" if info['numeric_count'] > info['string_count'] else "remove_numbers"
@@ -634,10 +634,10 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                                 "force_to_numeric"
                             ],
                             format_func=lambda x: {
-                                "convert_all_to_string": "🔤 Convert all to string",
-                                "force_to_numeric": "🔢 Force to numeric (strings → NaN)",
-                                "remove_strings": "🗑️ Remove string values (→ NaN)", 
-                                "remove_numbers": "🗑️ Remove numeric values (→ NaN)"
+                                "convert_all_to_string": "Convert all to string",
+                                "force_to_numeric": "Force to numeric (strings → NaN)",
+                                "remove_strings": "Remove string values (→ NaN)", 
+                                "remove_numbers": "Remove numeric values (→ NaN)"
                             }[x],
                             index=0 if default_strategy == "remove_strings" else 1,
                             key=f"strategy_{col}"
@@ -645,19 +645,19 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                         
                         # Show impact preview
                         if strategy == "convert_all_to_string":
-                            st.info("ℹ️ All data preserved as text")
+                            st.info("All data preserved as text")
                         elif strategy == "force_to_numeric":
-                            st.warning(f"⚠️ Will set {info['string_count']} string values to NaN")
+                            st.warning(f"Will set {info['string_count']} string values to NaN")
                         elif strategy == "remove_strings":
-                            st.error(f"🗑️ Will remove {info['string_count']} string values")
+                            st.error(f"Will remove {info['string_count']} string values")
                         elif strategy == "remove_numbers":
-                            st.error(f"🗑️ Will remove {info['numeric_count']} numeric values")
+                            st.error(f"Will remove {info['numeric_count']} numeric values")
                         
                         # Confirmation and apply
                         if st.button(f"Apply to '{col}'", key=f"apply_{col}", type="primary"):
                             df_updated, results = apply_resolution_strategy(df, col, strategy)
                             
-                            st.success("✅ Changes applied!")
+                            st.success("Changes applied!")
                             for result in results:
                                 st.write(f"• {result}")
                             
@@ -671,7 +671,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                             
                             st.rerun()
         else:
-            st.success("🎉 No mixed-type columns detected!")
+            st.success("No mixed-type columns detected!")
             
 #####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
@@ -701,9 +701,9 @@ elif st.session_state.selected_section == "Object Conversion":
                 with col1:
                     # Visual breakdown
                     st.write("**Data Type Breakdown:**")
-                    st.write(f"🔢 Numeric: {info['numeric_pct']:.1f}%")
-                    st.write(f"📅 Datetime: {info['datetime_pct']:.1f}%") 
-                    st.write(f"📝 String: {info['string_pct']:.1f}%")
+                    st.write(f"Numeric: {info['numeric_pct']:.1f}%")
+                    st.write(f"Datetime: {info['datetime_pct']:.1f}%") 
+                    st.write(f"String: {info['string_pct']:.1f}%")
                     
                     # Show sample values
                     sample_values = df[col].dropna().head(3).tolist()
@@ -722,7 +722,7 @@ elif st.session_state.selected_section == "Object Conversion":
                         confidence_text = "Low confidence"
                         confidence_color = "error"
                     
-                    st.info(f"💡 **Recommendation:** Convert column '{col}' to **{suggested}** ({confidence_text}: {confidence:.1f}%)")
+                    st.info(f" **Recommendation:** Convert column '{col}' to **{suggested}** ({confidence_text}: {confidence:.1f}%)")
                 
                 with col2:
                     conversion_choice = st.selectbox(
@@ -735,11 +735,11 @@ elif st.session_state.selected_section == "Object Conversion":
                     conversion_choices[col] = conversion_choice
                     
                     # Individual apply button for this column
-                    if st.button(f"🔄 Apply to '{col}'", key=f"apply_{col}", type="secondary"):
+                    if st.button(f"Apply to '{col}'", key=f"apply_{col}", type="secondary"):
                         df_converted, results = apply_conversions(df, {col: conversion_choice})
                         
                         if results:
-                            st.success(f"✅ Conversion applied to '{col}'!")
+                            st.success(f"Conversion applied to '{col}'!")
                             for result in results:
                                 st.write(f"• {result}")
                             
@@ -769,11 +769,11 @@ elif st.session_state.selected_section == "Object Conversion":
             # Keep the bulk apply button as well for convenience
             if len(suggestions) > 1:  # Only show if multiple columns remain
                 st.markdown("### Bulk Operations")
-                if st.button("🔄 Apply All Selected Conversions", type="primary"):
+                if st.button("Apply All Selected Conversions", type="primary"):
                     df_converted, results = apply_conversions(df, conversion_choices)
                     
                     if results:
-                        st.success("✅ All conversions applied successfully!")
+                        st.success("All conversions applied successfully!")
                         for result in results:
                             st.write(f"• {result}")
                         
@@ -805,7 +805,7 @@ elif st.session_state.selected_section == "Object Conversion":
             if st.button("Convert to Int", key="btn_floatint"):
                 for col in safe_int_cols:
                     df[col] = df[col].astype('Int64')
-                    st.success(f"✅ {col}: float64 → Int64")
+                    st.success(f"{col}: float64 → Int64")
                 st.session_state.processed_df = df
         else:
             st.info("No float columns are safely convertible to integers.")
@@ -831,7 +831,7 @@ elif st.session_state.selected_section == "Optimize Analysis":
             for col in df.select_dtypes(include='object'):
                 if should_treat_as_categorical(df[col]):
                     df[col] = df[col].astype('category')
-                    st.write(f"✅ {col}: object → category")
+                    st.write(f"{col}: object → category")
     
         if downcast_nums:
             for col in df.select_dtypes(include=['int64', 'float64']):
@@ -839,7 +839,7 @@ elif st.session_state.selected_section == "Optimize Analysis":
                 st.write(f"✅ {col}: downcasted for memory optimization")
     
         st.session_state.processed_df = df
-        st.success("✅ Optimization complete!")
+        st.success("Optimization complete!")
 
 #####################################################################################################################################
 # SECTION 6: Detect and Handle Outliers
@@ -904,7 +904,7 @@ elif st.session_state.selected_section == "Handle Outliers":
                 }
     
         if outlier_report:
-            st.success(f"✅ Found {len(outlier_report)} columns with outliers.")
+            st.success(f"Found {len(outlier_report)} columns with outliers.")
             for col, stats in outlier_report.items():
                 st.markdown(f"**Column: `{col}`**")
                 st.write(f"- Outliers: {stats['count']} ({stats['percent']:.2f}%)")
@@ -932,19 +932,19 @@ elif st.session_state.selected_section == "Handle Outliers":
                     if st.button(f"Replace outliers in '{col}' with NaN", key=f"nan_{col}"):
                         df.loc[stats["mask"], col] = np.nan
                         st.session_state.processed_df = df
-                        st.success(f"✅ Replaced outliers in '{col}' with NaN")
+                        st.success(f"Replaced outliers in '{col}' with NaN")
         
                 with c2:
                     if st.button(f"Drop rows with outliers in '{col}'", key=f"drop_{col}"):
                         df = df[~stats["mask"]]
                         st.session_state.processed_df = df
-                        st.success(f"🗑️ Dropped {stats['count']} rows with outliers in '{col}'")
+                        st.success(f"Dropped {stats['count']} rows with outliers in '{col}'")
         
                 with c3:
                     if st.button(f"Skip column '{col}'", key=f"skip_{col}"):
-                        st.info(f"⏭️ Skipped handling outliers in '{col}'")
+                        st.info(f"Skipped handling outliers in '{col}'")
         else:
-            st.success("🎉 No outliers detected using the current IQR threshold.")
+            st.success("No outliers detected using the current IQR threshold.")
 
 #####################################################################################################################################
 # SECTION 7: Clean and Normalize Text Data
@@ -974,7 +974,7 @@ elif st.session_state.selected_section == "Clean Text Data":
         detect_button = st.button("🔍 Run Text Detection", type="secondary")
     with col2:
         if st.session_state.text_analysis_done:
-            st.write(f"✅ Analysis complete - {len(st.session_state.text_columns)} text column(s) found")
+            st.write(f"Analysis complete - {len(st.session_state.text_columns)} text column(s) found")
         else:
             st.write("Click to analyze text columns in your current dataset")
     
@@ -1028,13 +1028,13 @@ elif st.session_state.selected_section == "Clean Text Data":
     
     # Show results if analysis has been done
     if st.session_state.text_analysis_done and st.session_state.text_columns:
-        st.subheader("📊 Text Data Overview")
+        st.subheader("Text Data Overview")
         
         overview_df = pd.DataFrame(st.session_state.text_overview)
         st.dataframe(overview_df, use_container_width=True)
         
         # Column selection
-        st.subheader("🎯 Select Columns to Clean")
+        st.subheader("Select Columns to Clean")
         selected_columns = st.multiselect(
             "Choose which text columns to clean:",
             options=st.session_state.text_columns,
@@ -1044,7 +1044,7 @@ elif st.session_state.selected_section == "Clean Text Data":
         
         if selected_columns:
             # Cleanup options
-            st.subheader("🧹 Choose Cleanup Actions")
+            st.subheader("Choose Cleanup Actions")
             text_opts = st.multiselect(
                 "Select text cleanup actions:",
                 options=[
@@ -1062,7 +1062,7 @@ elif st.session_state.selected_section == "Clean Text Data":
             
             if text_opts:
                 # Preview section
-                st.subheader("👀 Preview Changes")
+                st.subheader("Preview Changes")
                 
                 preview_col = st.selectbox(
                     "Select a column to preview changes:",
@@ -1118,7 +1118,7 @@ elif st.session_state.selected_section == "Clean Text Data":
                         st.info(f"No changes will be made to '{preview_col}' with the selected options.")
                 
                 # Apply button
-                st.subheader("✅ Apply Changes")
+                st.subheader("Apply Changes")
                 
                 col1, col2 = st.columns([1, 3])
                 with col1:

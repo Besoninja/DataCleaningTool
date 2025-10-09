@@ -1560,7 +1560,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         undone = st.session_state.impute_log.pop()
                         st.success(f"Undid imputation: {undone[1]} on '{undone[0]}'")
                     else:
-                        st.info( No previous imputation to undo.")
+                        st.info("No previous imputation to undo.")
                 else:
                     st.warning("No backup available to undo.")
     

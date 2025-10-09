@@ -438,7 +438,7 @@ if st.session_state.selected_section == "File Upload":
         if columns_with_missing:
             st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
         
-        st.info("To start cleaning your data please make a selection from the left column") 
+        st.info("Please chose an option on the left to start cleaning your data.") 
         
 #####################################################################################################################################
 # SECTION 2: Data Overview

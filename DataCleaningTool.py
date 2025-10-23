@@ -1952,8 +1952,8 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 # Update session state
                 st.session_state.processed_df = df
                 
-                # Show before/after comparison
-                st.subheader("Imputation Results - Before & After")
+                # Show imputed rows with context
+                st.subheader("Imputation Results")
                 
                 if len(missing_indices) > 0:
                     # Get the after state for the same rows
@@ -1967,26 +1967,27 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     
                     # Show comparison
                     num_rows_to_show = min(10, len(missing_indices))
-                    st.write(f"Showing {num_rows_to_show} of {len(missing_indices)} imputed row(s):")
+                    st.write(f"Showing {num_rows_to_show} of {len(missing_indices)} imputed row(s) with context:")
                     
                     for i, idx in enumerate(missing_indices[:num_rows_to_show]):
-                        st.markdown(f"**Row {idx}:**")
+                        st.markdown(f"**Imputed Row {idx}** (showing ±2 rows for context):")
                         
-                        col1, col2 = st.columns(2)
+                        # Get 2 rows above and 2 rows below for context
+                        start_idx = max(0, df.index.get_loc(idx) - 2)
+                        end_idx = min(len(df) - 1, df.index.get_loc(idx) + 2)
                         
-                        with col1:
-                            st.write("**Before:**")
-                            before_data = {}
-                            for col in cols_to_show:
-                                before_data[col] = [rows_with_missing.loc[idx, col]]
-                            st.dataframe(pd.DataFrame(before_data), use_container_width=True)
+                        # Get the context window
+                        context_df = df.iloc[start_idx:end_idx + 1][cols_to_show].copy()
                         
-                        with col2:
-                            st.write("**After:**")
-                            after_data = {}
-                            for col in cols_to_show:
-                                after_data[col] = [rows_after_imputation.loc[idx, col]]
-                            st.dataframe(pd.DataFrame(after_data), use_container_width=True)
+                        # Create a styled dataframe to highlight the imputed row
+                        def highlight_imputed_row(row):
+                            if row.name == idx:
+                                return ['background-color: #90EE90'] * len(row)  # Light green
+                            else:
+                                return [''] * len(row)
+                        
+                        styled_df = context_df.style.apply(highlight_imputed_row, axis=1)
+                        st.dataframe(styled_df, use_container_width=True)
                     
                     if len(missing_indices) > num_rows_to_show:
                         st.info(f"Showing first {num_rows_to_show} rows. {len(missing_indices) - num_rows_to_show} more rows were also imputed.")

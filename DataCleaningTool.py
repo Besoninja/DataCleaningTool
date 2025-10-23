@@ -1395,6 +1395,7 @@ elif st.session_state.selected_section == "Clean Column Names":
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
     df = st.session_state.processed_df
@@ -1999,15 +2000,11 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         # Get the context window
                         context_df = df.iloc[start_idx:end_idx + 1][cols_to_show].copy()
                         
-                        # Create a styled dataframe to highlight the imputed row with bold text
-                        def highlight_imputed_row(row):
-                            if row.name == idx:
-                                return ['font-weight: bold; color: #0066CC'] * len(row)  # Bold blue text
-                            else:
-                                return [''] * len(row)
+                        # Add an indicator column to show which row was imputed
+                        context_df.insert(0, 'Status', '')
+                        context_df.loc[idx, 'Status'] = '← IMPUTED'
                         
-                        styled_df = context_df.style.apply(highlight_imputed_row, axis=1)
-                        st.dataframe(styled_df, use_container_width=True)
+                        st.dataframe(context_df, use_container_width=True)
                     
                     if len(missing_indices) > num_rows_to_show:
                         st.info(f"Showing first {num_rows_to_show} rows. {len(missing_indices) - num_rows_to_show} more rows were also imputed.")

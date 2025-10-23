@@ -1394,6 +1394,7 @@ elif st.session_state.selected_section == "Clean Column Names":
 
 #####################################################################################################################################
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
     df = st.session_state.processed_df
@@ -2015,6 +2016,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     st.write("No imputations logged yet.")
     else:
         st.info("Please upload a CSV file to begin.")
+
 
 #####################################################################################################################################            
 # SECTION 10: Download Processed Data

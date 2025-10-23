@@ -1391,7 +1391,8 @@ elif st.session_state.selected_section == "Clean Column Names":
     else:
         st.info("Click 'Analyze Column Names' to check your column names for potential issues.")
 
-    
+
+#####################################################################################################################################
 #####################################################################################################################################
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
@@ -1835,6 +1836,16 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
             if st.button("Apply Imputation", type="primary"):
                 st.session_state.df_backup = df.copy()
+                
+                # Store rows with missing values for before/after comparison
+                if apply_all:
+                    applicable_columns = [col for col in missing_columns if df[col].dtype == df[selected_column].dtype]
+                    missing_mask = df[applicable_columns].isna().any(axis=1)
+                else:
+                    missing_mask = df[selected_column].isna()
+                
+                rows_with_missing = df[missing_mask].copy()
+                missing_indices = df[missing_mask].index.tolist()
     
                 def apply_imputation(col):
                     """Apply the selected imputation method to a column"""
@@ -1941,8 +1952,46 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 # Update session state
                 st.session_state.processed_df = df
                 
-                st.subheader("Updated Data Preview")
-                st.dataframe(df.head())
+                # Show before/after comparison
+                st.subheader("Imputation Results - Before & After")
+                
+                if len(missing_indices) > 0:
+                    # Get the after state for the same rows
+                    rows_after_imputation = df.loc[missing_indices].copy()
+                    
+                    # Determine which columns to show
+                    if apply_all:
+                        cols_to_show = applicable_columns
+                    else:
+                        cols_to_show = [selected_column]
+                    
+                    # Show comparison
+                    num_rows_to_show = min(10, len(missing_indices))
+                    st.write(f"Showing {num_rows_to_show} of {len(missing_indices)} imputed row(s):")
+                    
+                    for i, idx in enumerate(missing_indices[:num_rows_to_show]):
+                        st.markdown(f"**Row {idx}:**")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.write("**Before:**")
+                            before_data = {}
+                            for col in cols_to_show:
+                                before_data[col] = [rows_with_missing.loc[idx, col]]
+                            st.dataframe(pd.DataFrame(before_data), use_container_width=True)
+                        
+                        with col2:
+                            st.write("**After:**")
+                            after_data = {}
+                            for col in cols_to_show:
+                                after_data[col] = [rows_after_imputation.loc[idx, col]]
+                            st.dataframe(pd.DataFrame(after_data), use_container_width=True)
+                    
+                    if len(missing_indices) > num_rows_to_show:
+                        st.info(f"Showing first {num_rows_to_show} rows. {len(missing_indices) - num_rows_to_show} more rows were also imputed.")
+                else:
+                    st.info("No missing values were found to impute.")
     
             if st.button("Undo Last Imputation"):
                 if st.session_state.df_backup is not None:

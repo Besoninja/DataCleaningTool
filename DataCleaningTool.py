@@ -1542,9 +1542,18 @@ elif st.session_state.selected_section == "Impute Missing Values":
             cols_to_use = [target_column] + feature_cols
             imputation_df = prepared_df[cols_to_use].copy()
             
+            # Count complete rows (no NaN values)
+            complete_rows_count = imputation_df.dropna().shape[0]
+            
+            if complete_rows_count < 1:
+                return df, "Not enough complete rows for KNN imputation. All rows have at least one missing value."
+            
+            # Adjust n_neighbors to not exceed complete rows
+            actual_neighbors = min(n_neighbors, complete_rows_count)
+            
             # Apply KNN imputation
             from sklearn.impute import KNNImputer
-            imputer = KNNImputer(n_neighbors=min(n_neighbors, len(imputation_df.dropna())))
+            imputer = KNNImputer(n_neighbors=actual_neighbors)
             imputed_values = imputer.fit_transform(imputation_df)
             
             # Put imputed values back into prepared_df
@@ -1764,7 +1773,17 @@ elif st.session_state.selected_section == "Impute Missing Values":
         else:
             percent_missing = (total_missing / (df.shape[0] * df.shape[1])) * 100
             st.write(f"**Total Missing Cells:** `{total_missing}` ({percent_missing:.2f}%)")
-            st.dataframe(missing_cols.to_frame("Missing Count"))
+            
+            # Create summary dataframe with column types
+            missing_summary_data = []
+            for col in missing_cols.index:
+                missing_summary_data.append({
+                    'Column': col,
+                    'Missing Count': missing_cols[col],
+                    'Data Type': df[col].dtype.name
+                })
+            missing_summary_df = pd.DataFrame(missing_summary_data)
+            st.dataframe(missing_summary_df, use_container_width=True)
     
             if st.checkbox("Drop rows with more than 50% missing values"):
                 initial_rows = df.shape[0]
@@ -1980,10 +1999,10 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         # Get the context window
                         context_df = df.iloc[start_idx:end_idx + 1][cols_to_show].copy()
                         
-                        # Create a styled dataframe to highlight the imputed row
+                        # Create a styled dataframe to highlight the imputed row with bold text
                         def highlight_imputed_row(row):
                             if row.name == idx:
-                                return ['background-color: #90EE90'] * len(row)  # Light green
+                                return ['font-weight: bold; color: #0066CC'] * len(row)  # Bold blue text
                             else:
                                 return [''] * len(row)
                         
@@ -1994,6 +2013,9 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         st.info(f"Showing first {num_rows_to_show} rows. {len(missing_indices) - num_rows_to_show} more rows were also imputed.")
                 else:
                     st.info("No missing values were found to impute.")
+                
+                # Rerun to refresh the missing value summary
+                st.rerun()
     
             if st.button("Undo Last Imputation"):
                 if st.session_state.df_backup is not None:

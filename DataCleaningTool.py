@@ -445,7 +445,7 @@ if st.session_state.selected_section == "File Upload":
                 missing_details.append({
                     'Column': col_name,
                     'Missing Count': null_count,
-                    'Missing %': f"{null_pct:.1f}%"
+                    'Missing %': f"{null_pct:.2f}%"
                 })
             
             missing_df = pd.DataFrame(missing_details)
@@ -519,7 +519,7 @@ if st.session_state.selected_section == "File Upload":
                     missing_details.append({
                         'Column': col_name,
                         'Missing Count': null_count,
-                        'Missing %': f"{null_pct:.1f}%"
+                        'Missing %': f"{null_pct:.2f}%"
                     })
                 
                 missing_df = pd.DataFrame(missing_details)

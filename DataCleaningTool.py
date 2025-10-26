@@ -1129,6 +1129,7 @@ elif st.session_state.selected_section == "Optimize Analysis":
             st.success("Optimization complete!")
 
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 6: Detect and Handle Outliers
 elif st.session_state.selected_section == "Handle Outliers":
     df = st.session_state.processed_df
@@ -1136,7 +1137,7 @@ elif st.session_state.selected_section == "Handle Outliers":
         st.error("Please upload a file first!")
         st.stop()
     st.header("6. Detect and Handle Outliers")
-    with st.expander("ℹ️ What are outliers and how does this work?"):
+    with st.expander("What are outliers and how does this work?"):
         st.markdown("""
         ### What are outliers?
         Outliers are data points that are unusually high or low compared to the rest of your data. 
@@ -1169,6 +1170,10 @@ elif st.session_state.selected_section == "Handle Outliers":
         "IQR Multiplier (default = 1.5)", min_value=1.0, max_value=5.0, value=1.5, step=0.1
     )
     
+    # Initialize outlier report in session state if not exists
+    if 'outlier_report' not in st.session_state:
+        st.session_state.outlier_report = None
+    
     if st.button("Run Outlier Detection"):
         df = st.session_state.processed_df.copy()
         outlier_report = {}
@@ -1189,9 +1194,17 @@ elif st.session_state.selected_section == "Handle Outliers":
                     "percent": 100 * count / len(df),
                     "mask": mask
                 }
+        
+        st.session_state.outlier_report = outlier_report
     
+    # Display outlier report if it exists
+    if st.session_state.outlier_report is not None:
+        outlier_report = st.session_state.outlier_report
+        df = st.session_state.processed_df
+        
         if outlier_report:
-            st.success(f"Found {len(outlier_report)} columns with outliers.")
+            st.success(f"Found {len(outlier_report)} column(s) with outliers.")
+            
             for col, stats in outlier_report.items():
                 st.markdown(f"**Column: `{col}`**")
                 st.write(f"- Outliers: {stats['count']} ({stats['percent']:.2f}%)")
@@ -1217,22 +1230,39 @@ elif st.session_state.selected_section == "Handle Outliers":
         
                 with c1:
                     if st.button(f"Replace outliers in '{col}' with NaN", key=f"nan_{col}"):
-                        df.loc[stats["mask"], col] = np.nan
-                        st.session_state.processed_df = df
-                        st.success(f"Replaced outliers in '{col}' with NaN")
+                        df_copy = st.session_state.processed_df.copy()
+                        df_copy.loc[stats["mask"], col] = np.nan
+                        st.session_state.processed_df = df_copy
+                        
+                        # Remove this column from outlier report
+                        del st.session_state.outlier_report[col]
+                        
+                        st.success(f"Replaced {stats['count']} outliers in '{col}' with NaN")
+                        st.rerun()
         
                 with c2:
                     if st.button(f"Drop rows with outliers in '{col}'", key=f"drop_{col}"):
-                        df = df[~stats["mask"]]
-                        st.session_state.processed_df = df
+                        df_copy = st.session_state.processed_df.copy()
+                        df_copy = df_copy[~stats["mask"]]
+                        st.session_state.processed_df = df_copy
+                        
+                        # Clear entire outlier report since row indices have changed
+                        st.session_state.outlier_report = None
+                        
                         st.success(f"Dropped {stats['count']} rows with outliers in '{col}'")
+                        st.rerun()
         
                 with c3:
                     if st.button(f"Skip column '{col}'", key=f"skip_{col}"):
+                        # Remove this column from outlier report
+                        del st.session_state.outlier_report[col]
+                        
                         st.info(f"Skipped handling outliers in '{col}'")
+                        st.rerun()
         else:
             st.success("No outliers detected using the current IQR threshold.")
-
+            st.session_state.outlier_report = None
+            
 #####################################################################################################################################
 # SECTION 7: Clean and Normalize Text Data
 elif st.session_state.selected_section == "Clean Text Data":

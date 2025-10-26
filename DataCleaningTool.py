@@ -1395,7 +1395,7 @@ elif st.session_state.selected_section == "Clean Column Names":
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
-
+#####################################################################################################################################
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
     df = st.session_state.processed_df
@@ -1546,11 +1546,14 @@ elif st.session_state.selected_section == "Impute Missing Values":
             # Apply KNN imputation on the entire prepared dataframe
             from sklearn.impute import KNNImputer
             imputer = KNNImputer(n_neighbors=actual_neighbors)
-            imputed_values = imputer.fit_transform(prepared_df)
+            imputed_array = imputer.fit_transform(prepared_df)
             
-            # Put imputed values back into prepared_df
-            for i, col in enumerate(prepared_df.columns):
-                prepared_df[col] = imputed_values[:, i]
+            # Create new dataframe from imputed values with same index and columns
+            prepared_df = pd.DataFrame(
+                imputed_array,
+                index=prepared_df.index,
+                columns=prepared_df.columns
+            )
             
             # Restore to original format (only the target column gets updated in original df)
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
@@ -1566,7 +1569,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
     def apply_linear_regression_imputation(df, target_column):
         """
-        Apply Linear Regression imputation to target column using all other columns as features.
+        Apply Linear Regression imputation to target column using available complete features.
         
         Returns:
             imputed_df: DataFrame with target column imputed
@@ -1577,33 +1580,44 @@ elif st.session_state.selected_section == "Impute Missing Values":
             prepared_df, metadata = prepare_data_for_advanced_imputation(df, target_column)
             
             # Get all feature columns (everything except target)
-            feature_cols = get_numeric_feature_columns(prepared_df, target_column)
+            all_feature_cols = get_numeric_feature_columns(prepared_df, target_column)
             
-            if len(feature_cols) < 1:
+            if len(all_feature_cols) < 1:
                 return df, "Not enough columns for Linear Regression. Need at least 1 other column."
             
             # Split into rows where target is complete vs missing
             target_missing = metadata['target_missing_mask']
-            complete_rows = prepared_df[~target_missing].copy()
-            missing_rows = prepared_df[target_missing].copy()
+            complete_target_rows = prepared_df[~target_missing].copy()
+            missing_target_rows = prepared_df[target_missing].copy()
             
-            # Drop rows with NaN in features for training
-            complete_rows_clean = complete_rows.dropna(subset=feature_cols)
+            # Find which features have enough complete data to be useful
+            # We'll only use features that have at least 50% complete data in training rows
+            usable_features = []
+            for col in all_feature_cols:
+                completeness = complete_target_rows[col].notna().sum() / len(complete_target_rows)
+                if completeness >= 0.5:
+                    usable_features.append(col)
+            
+            if len(usable_features) < 1:
+                return df, "Not enough usable features for Linear Regression (too many missing values)."
+            
+            # Get training rows that have complete data in usable features
+            complete_rows_clean = complete_target_rows.dropna(subset=usable_features)
             
             if len(complete_rows_clean) < 2:
-                return df, "Not enough complete rows for Linear Regression training."
+                return df, f"Not enough complete rows for Linear Regression training. Found {len(complete_rows_clean)} complete rows, need at least 2."
             
             # Prepare training data
-            X_train = complete_rows_clean[feature_cols]
+            X_train = complete_rows_clean[usable_features]
             y_train = complete_rows_clean[target_column]
             
-            # Prepare prediction data (drop rows with NaN in features)
-            missing_rows_clean = missing_rows.dropna(subset=feature_cols)
+            # Prepare prediction data (drop rows with NaN in usable features)
+            missing_rows_clean = missing_target_rows.dropna(subset=usable_features)
             
             if len(missing_rows_clean) == 0:
-                return df, "All missing rows have NaN in feature columns. Cannot predict."
+                return df, "All rows with missing target values also have missing feature values. Cannot predict."
             
-            X_missing = missing_rows_clean[feature_cols]
+            X_missing = missing_rows_clean[usable_features]
             
             # Train and predict
             from sklearn.linear_model import LinearRegression
@@ -1618,7 +1632,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
             
             filled_count = len(predictions)
-            message = f"Linear Regression successful! Filled {filled_count} missing values using {len(feature_cols)} feature column(s)."
+            message = f"Linear Regression successful! Filled {filled_count} missing values using {len(usable_features)} feature column(s)."
             
             return restored_df, message
             
@@ -1642,11 +1656,14 @@ elif st.session_state.selected_section == "Impute Missing Values":
             
             # Apply Iterative Imputation on the entire prepared dataframe
             imputer = IterativeImputer(max_iter=max_iter, random_state=0)
-            imputed_values = imputer.fit_transform(prepared_df)
+            imputed_array = imputer.fit_transform(prepared_df)
             
-            # Put imputed values back into prepared_df
-            for i, col in enumerate(prepared_df.columns):
-                prepared_df[col] = imputed_values[:, i]
+            # Create new dataframe from imputed values
+            prepared_df = pd.DataFrame(
+                imputed_array,
+                index=prepared_df.index,
+                columns=prepared_df.columns
+            )
             
             # Restore to original format
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
@@ -1677,11 +1694,14 @@ elif st.session_state.selected_section == "Impute Missing Values":
             
             # Apply MissForest on the entire prepared dataframe
             imputer = MissForest(random_state=0)
-            imputed_values = imputer.fit_transform(prepared_df)
+            imputed_array = imputer.fit_transform(prepared_df)
             
-            # Put imputed values back into prepared_df
-            for i, col in enumerate(prepared_df.columns):
-                prepared_df[col] = imputed_values[:, i]
+            # Create new dataframe from imputed values
+            prepared_df = pd.DataFrame(
+                imputed_array,
+                index=prepared_df.index,
+                columns=prepared_df.columns
+            )
             
             # Restore to original format
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
@@ -2016,7 +2036,6 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     st.write("No imputations logged yet.")
     else:
         st.info("Please upload a CSV file to begin.")
-
 
 
 #####################################################################################################################################            

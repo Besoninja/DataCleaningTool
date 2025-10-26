@@ -975,6 +975,7 @@ elif st.session_state.selected_section == "Object Conversion":
             st.info("No float columns are safely convertible to integers.")
 
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 5: Optimize for Analysis
 elif st.session_state.selected_section == "Optimize Analysis":
     df = st.session_state.processed_df
@@ -982,29 +983,150 @@ elif st.session_state.selected_section == "Optimize Analysis":
         st.error("Please upload a file first!")
         st.stop()
     st.header("5. Optimize for Analysis")
+    
+    with st.expander("What does optimization do and why does it matter?"):
+        st.markdown("""
+        ### Overview
+        This section helps reduce memory usage and improve performance by converting your data to more efficient storage formats.
+        For large datasets, these optimizations can reduce memory usage by 50-90% and speed up analysis significantly.
+        
+        ---
+        
+        ### Convert Low-Cardinality Columns to 'Category'
+        
+        **What are low-cardinality columns?**
+        - Columns with relatively few unique values compared to total rows
+        - Examples: Country names (195 countries vs millions of rows), Status fields ("Active"/"Inactive"), Product categories
+        
+        **Why convert to category?**
+        
+        **Massive memory savings:**
+        - String columns store the full text for every row
+        - Category columns store each unique value once, then use small integer codes
+        - Example: A column with 1 million rows and 5 unique values:
+          - As string: ~8 MB
+          - As category: ~1 MB (87% reduction)
+        
+        **Faster operations:**
+        - Sorting, grouping, and filtering are significantly faster
+        - Comparisons use integer codes instead of string matching
+        
+        **Better for analysis:**
+        - Many visualization libraries automatically recognize categories
+        - Statistical functions work more efficiently
+        - Makes it explicit which columns are categorical variables
+        
+        **When to use:**
+        - Columns where unique values < 10% of total rows (this tool's default threshold)
+        - Status fields, categories, labels, codes, country/state names
+        
+        ---
+        
+        ### Downcast Numeric Types
+        
+        **What is downcasting?**
+        - Converting numbers to smaller storage formats when possible
+        - Examples: int64 → int32, int64 → int16, float64 → float32
+        
+        **Why downcast?**
+        
+        **Memory savings:**
+        - int64 uses 8 bytes per value
+        - int32 uses 4 bytes (50% reduction)
+        - int16 uses 2 bytes (75% reduction)
+        - For millions of rows, this adds up quickly
+        
+        **Faster processing:**
+        - Smaller data types mean more data fits in CPU cache
+        - Calculations on smaller types are faster
+        - File I/O (reading/writing) is faster
+        
+        **When to use:**
+        - When you know your numbers fit in smaller ranges:
+          - int16: -32,768 to 32,767
+          - int32: -2.1 billion to 2.1 billion
+          - uint (unsigned): Only positive numbers, doubles the positive range
+        
+        **When NOT to use:**
+        - If numbers might grow beyond the smaller type's range
+        - If you need maximum precision for scientific calculations
+        - When memory isn't a concern and you want to play it safe
+        
+        ---
+        
+        ### Summary
+        Use these optimizations when:
+        - Working with large datasets (100,000+ rows)
+        - Memory is limited
+        - You need faster processing
+        - Preparing data for machine learning or repeated analysis
+        
+        Skip these optimizations when:
+        - Dataset is small (< 10,000 rows)
+        - Quick one-time analysis
+        - Unsure about data value ranges
+        """)
+    
     st.markdown("""
     Final optimization for memory and performance:
-    - Convert low-cardinality string columns to `category`.
-    - Optionally downcast numeric types (e.g., int64 → int32).
+    - Convert low-cardinality string columns to `category` (huge memory savings for repeated values)
+    - Optionally downcast numeric types to smaller formats (e.g., int64 → int32)
     """)
     
     optimize_cats = st.checkbox("Convert low-cardinality string columns to 'category'", value=True)
     downcast_nums = st.checkbox("Downcast numeric types to smaller types", value=False)
     
     if st.button("Run Optimization"):
+        optimization_report = []
+        
         if optimize_cats:
+            st.subheader("Category Conversion Results")
+            converted_count = 0
             for col in df.select_dtypes(include='object'):
                 if should_treat_as_categorical(df[col]):
+                    unique_count = df[col].nunique()
+                    total_count = len(df)
+                    unique_ratio = unique_count / total_count
+                    
+                    # Calculate memory savings
+                    memory_before = df[col].memory_usage(deep=True)
                     df[col] = df[col].astype('category')
-                    st.write(f"{col}: object → category")
+                    memory_after = df[col].memory_usage(deep=True)
+                    memory_saved = memory_before - memory_after
+                    percent_saved = (memory_saved / memory_before) * 100
+                    
+                    optimization_report.append(f"{col}: object → category ({unique_count} unique values, {percent_saved:.1f}% memory saved)")
+                    converted_count += 1
+            
+            if converted_count > 0:
+                st.success(f"Converted {converted_count} column(s) to category")
+                for report in optimization_report:
+                    st.write(f"• {report}")
+            else:
+                st.info("No columns met the criteria for category conversion")
     
         if downcast_nums:
+            st.subheader("Numeric Downcasting Results")
+            downcast_report = []
             for col in df.select_dtypes(include=['int64', 'float64']):
+                original_dtype = df[col].dtype
                 df[col] = pd.to_numeric(df[col], downcast='unsigned' if df[col].min() >= 0 else 'integer')
-                st.write(f"{col}: downcasted for memory optimization")
+                new_dtype = df[col].dtype
+                
+                if original_dtype != new_dtype:
+                    downcast_report.append(f"{col}: {original_dtype} → {new_dtype}")
+            
+            if downcast_report:
+                st.success(f"Downcasted {len(downcast_report)} column(s)")
+                for report in downcast_report:
+                    st.write(f"• {report}")
+            else:
+                st.info("No numeric columns could be downcasted further")
     
         st.session_state.processed_df = df
-        st.success("Optimization complete!")
+        
+        if optimize_cats or downcast_nums:
+            st.success("Optimization complete!")
 
 #####################################################################################################################################
 # SECTION 6: Detect and Handle Outliers

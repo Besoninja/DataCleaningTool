@@ -1264,6 +1264,7 @@ elif st.session_state.selected_section == "Handle Outliers":
             st.session_state.outlier_report = None
             
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 7: Clean and Normalize Text Data
 elif st.session_state.selected_section == "Clean Text Data":
     df = st.session_state.processed_df
@@ -1288,33 +1289,34 @@ elif st.session_state.selected_section == "Clean Text Data":
     # Text Detection Button
     col1, col2 = st.columns([1, 3])
     with col1:
-        detect_button = st.button("🔍 Run Text Detection", type="secondary")
+        detect_button = st.button("Run Text Detection", type="secondary")
     with col2:
         if st.session_state.text_analysis_done:
-            st.write(f"Analysis complete - {len(st.session_state.text_columns)} text column(s) found")
+            st.write(f"Analysis complete - {len(st.session_state.text_columns)} text column(s) need cleaning")
         else:
             st.write("Click to analyze text columns in your current dataset")
     
     if detect_button or not st.session_state.text_analysis_done:
         # Get text columns from the current dataframe
         df = st.session_state.processed_df
-        text_columns = df.select_dtypes(include=['object', 'string']).columns.tolist()
+        all_text_columns = df.select_dtypes(include=['object', 'string']).columns.tolist()
         
-        if not text_columns:
+        if not all_text_columns:
             st.info("No text columns found in your current dataset.")
             st.session_state.text_columns = []
             st.session_state.text_overview = []
             st.session_state.text_analysis_done = True
         else:
-            # Store results in session state
-            st.session_state.text_columns = text_columns
-            st.session_state.text_analysis_done = True
-            
-            # Create overview of text columns
+            # Filter to only columns that actually need cleaning
+            text_columns_needing_cleanup = []
             text_overview = []
-            for col in text_columns:
+            
+            for col in all_text_columns:
                 non_null_count = df[col].notna().sum()
                 unique_count = df[col].nunique()
+                
+                # Check for issues that need cleaning
+                issues_found = False
                 
                 # Check for null-like strings
                 null_like_patterns = ["NA", "N/A", "na", "n/a", "--", "-", "", "null", "NULL", "Null"]
@@ -1325,23 +1327,62 @@ elif st.session_state.selected_section == "Clean Text Data":
                 if non_null_count > 0:
                     whitespace_issues = df[col].astype(str).apply(lambda x: x != x.strip()).sum()
                 
-                # Sample values (first 3 non-null unique values)
-                sample_values = df[col].dropna().unique()[:3].tolist()
-                sample_str = ", ".join([f'"{str(val)}"' for val in sample_values])
-                if len(sample_values) == 3 and unique_count > 3:
-                    sample_str += "..."
+                # Check for mixed case (could benefit from lowercase conversion)
+                mixed_case_count = 0
+                if non_null_count > 0:
+                    sample = df[col].dropna().astype(str)
+                    if len(sample) > 0:
+                        mixed_case_count = sum(1 for val in sample if val != val.lower() and val != val.upper())
                 
-                text_overview.append({
-                    'Column': col,
-                    'Non-null Values': non_null_count,
-                    'Unique Values': unique_count,
-                    'Null-like Strings': null_like_count,
-                    'Whitespace Issues': whitespace_issues,
-                    'Sample Values': sample_str
-                })
+                # Check for invisible characters
+                invisible_chars_count = 0
+                if non_null_count > 0:
+                    import re
+                    invisible_chars_count = df[col].astype(str).apply(
+                        lambda x: bool(re.search(r'[\u200b\xa0\u2000-\u200f\u2028-\u202f]', str(x)))
+                    ).sum()
+                
+                # Determine if this column needs cleaning
+                if null_like_count > 0 or whitespace_issues > 0 or mixed_case_count > 0 or invisible_chars_count > 0:
+                    issues_found = True
+                    text_columns_needing_cleanup.append(col)
+                    
+                    # Sample values (first 3 non-null unique values)
+                    sample_values = df[col].dropna().unique()[:3].tolist()
+                    sample_str = ", ".join([f'"{str(val)}"' for val in sample_values])
+                    if len(sample_values) == 3 and unique_count > 3:
+                        sample_str += "..."
+                    
+                    # Build issues summary
+                    issues_list = []
+                    if null_like_count > 0:
+                        issues_list.append(f"{null_like_count} null-like strings")
+                    if whitespace_issues > 0:
+                        issues_list.append(f"{whitespace_issues} whitespace issues")
+                    if mixed_case_count > 0:
+                        issues_list.append(f"{mixed_case_count} mixed case")
+                    if invisible_chars_count > 0:
+                        issues_list.append(f"{invisible_chars_count} invisible chars")
+                    
+                    issues_summary = ", ".join(issues_list)
+                    
+                    text_overview.append({
+                        'Column': col,
+                        'Non-null Values': non_null_count,
+                        'Unique Values': unique_count,
+                        'Issues Found': issues_summary,
+                        'Sample Values': sample_str
+                    })
             
+            # Store results in session state
+            st.session_state.text_columns = text_columns_needing_cleanup
             st.session_state.text_overview = text_overview
-            st.success(f"🔍 Text detection complete! Found {len(text_columns)} text column(s)")
+            st.session_state.text_analysis_done = True
+            
+            if text_columns_needing_cleanup:
+                st.success(f"Text detection complete! Found {len(text_columns_needing_cleanup)} text column(s) that need cleaning")
+            else:
+                st.success("Text detection complete! All text columns are already clean")
     
     # Show results if analysis has been done
     if st.session_state.text_analysis_done and st.session_state.text_columns:
@@ -1479,6 +1520,9 @@ elif st.session_state.selected_section == "Clean Text Data":
                     # Update session state
                     st.session_state.processed_df = df_cleaned
                     
+                    # Reset text analysis to allow re-detection
+                    st.session_state.text_analysis_done = False
+                    
                     # Show results
                     if changes_summary:
                         st.success(f"Text cleanup completed! Modified {len(changes_summary)} column(s)")
@@ -1495,10 +1539,11 @@ elif st.session_state.selected_section == "Clean Text Data":
                     else:
                         st.info("No changes were made during text cleanup with the selected options.")
     elif st.session_state.text_analysis_done and not st.session_state.text_columns:
-        st.info("No text columns found in your current dataset. Try running text detection again if you've made changes to your data.")
+        st.success("All text columns in your dataset are already clean! No issues detected.")
+        st.info("If you've made changes to your data, click 'Run Text Detection' again to re-analyze.")
     else:
-        st.info("Click 'Run Text Detection' to analyze your dataset and find text columns to clean.")
-        
+        st.info("Click 'Run Text Detection' to analyze your dataset and find text columns that need cleaning.")
+
 #####################################################################################################################################
 # SECTION 8: Clean Column Names
 elif st.session_state.selected_section == "Clean Column Names":

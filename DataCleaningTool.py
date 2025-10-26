@@ -762,6 +762,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
             st.success("No mixed-type columns detected!")
             
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
 elif st.session_state.selected_section == "Object Conversion":
     df = st.session_state.processed_df
@@ -769,8 +770,43 @@ elif st.session_state.selected_section == "Object Conversion":
         st.error("Please upload a file first!")
         st.stop()
     st.header("4. Smart Object Column Conversion")
+    
+    with st.expander("Why does data type matter?"):
+        st.markdown("""
+        ### What are 'object' columns?
+        When pandas loads your CSV file, columns containing text are labeled as 'object' type by default. 
+        However, many of these columns might actually contain numbers or dates disguised as text.
+        
+        ### Why should you care?
+        Using the wrong data type causes several problems:
+        
+        **Memory inefficiency:**
+        - Object columns use significantly more memory than numeric or datetime types
+        - A column with "1", "2", "3" as text uses ~10x more memory than true integers
+        
+        **Broken functionality:**
+        - Mathematical operations won't work (can't calculate averages, sums, etc.)
+        - Sorting produces wrong results ("10" comes before "2" when sorted as text)
+        - Visualizations and plots may fail or display incorrectly
+        - Machine learning models cannot process object columns directly
+        
+        **Analysis errors:**
+        - Statistical functions return errors or unexpected results
+        - Filtering and comparisons behave unexpectedly
+        - Date calculations are impossible on text-based dates
+        
+        ### What this tool does:
+        This section scans your 'object' columns and determines whether they should actually be:
+        - **Numeric** (integers or decimals for math operations)
+        - **Datetime** (dates/times for time-based analysis)
+        - **String** (true text data that should stay as text)
+        
+        Converting to the correct type unlocks proper functionality and improves performance.
+        """)
+    
     st.markdown("Automatically detect and convert object columns to their appropriate data types.")
-    if st.button("🔍 Analyze Object Columns"):
+    
+    if st.button("Analyze Object Columns"):
         st.session_state.object_suggestions = analyze_object_columns(df)
     
     if 'object_suggestions' in st.session_state:
@@ -810,15 +846,15 @@ elif st.session_state.selected_section == "Object Conversion":
                         confidence_text = "Low confidence"
                         confidence_color = "error"
                     
-                    st.info(f" **Recommendation:** Convert column '{col}' to **{suggested}** ({confidence_text}: {confidence:.1f}%)")
+                    st.info(f"**Recommendation:** Convert column '{col}' to **{suggested}** ({confidence_text}: {confidence:.1f}%)")
                 
                 with col2:
                     conversion_choice = st.selectbox(
-                        "Convert to:",
+                        "Convert Object column to:",
                         options=['string', 'numeric', 'datetime'],
                         index=['string', 'numeric', 'datetime'].index(suggested),
                         key=f"convert_{col}",
-                        help=f"Suggested: {suggested} (confidence: {info['confidence']:.1f}%)"
+                        help=f"Currently: object | Suggested: {suggested} (confidence: {info['confidence']:.1f}%)"
                     )
                     conversion_choices[col] = conversion_choice
                     
@@ -876,7 +912,7 @@ elif st.session_state.selected_section == "Object Conversion":
                         st.info("No conversions were applied.")
         
         else:
-            st.success("🎉 No object columns found to convert.")
+            st.success("No object columns found to convert.")
     
     # 4.3 Float → Int (keep this section as-is since it's working well)
     st.subheader("4.3 Convert float columns to integer (if safe)")
@@ -897,6 +933,7 @@ elif st.session_state.selected_section == "Object Conversion":
                 st.session_state.processed_df = df
         else:
             st.info("No float columns are safely convertible to integers.")
+            
 #####################################################################################################################################
 # SECTION 5: Optimize for Analysis
 elif st.session_state.selected_section == "Optimize Analysis":

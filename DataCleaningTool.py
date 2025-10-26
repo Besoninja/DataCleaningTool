@@ -435,7 +435,7 @@ if st.session_state.selected_section == "File Upload":
         
         # Show warning if there are columns with missing values
         if columns_with_missing:
-            st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
+            st.warning(f"Found {len(columns_with_missing)} column(s) with missing values:")
             
             # Create a detailed list of columns with missing values
             missing_details = []

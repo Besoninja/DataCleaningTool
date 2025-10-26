@@ -1395,6 +1395,7 @@ elif st.session_state.selected_section == "Clean Column Names":
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
+
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
     df = st.session_state.processed_df
@@ -1407,24 +1408,25 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
     def prepare_data_for_advanced_imputation(df, target_column):
         """
-        Prepare dataframe for advanced imputation methods.
+        Prepare the ENTIRE dataframe for advanced imputation methods.
+        Encodes categorical columns so they can be used by sklearn methods.
         
         Returns:
-            prepared_df: DataFrame ready for sklearn methods (all numeric)
+            prepared_df: Full DataFrame ready for sklearn methods (all numeric)
             metadata: Dictionary containing info needed to restore original state
         """
         metadata = {
             'original_dtypes': df.dtypes.to_dict(),
             'target_column': target_column,
             'categorical_mappings': {},
-            'original_column_order': df.columns.tolist(),
-            'target_missing_mask': df[target_column].isna()
+            'target_missing_mask': df[target_column].isna(),
+            'original_index': df.index
         }
         
-        # Create a copy to work with
+        # Create a copy of the ENTIRE dataframe
         prepared_df = df.copy()
         
-        # Encode categorical columns temporarily
+        # Encode ALL categorical columns temporarily so they can be used as features
         for col in prepared_df.columns:
             if prepared_df[col].dtype == 'object' or prepared_df[col].dtype.name == 'category':
                 # Store the mapping
@@ -1456,6 +1458,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
     def restore_data_after_imputation(imputed_df, original_df, metadata):
         """
         Restore dataframe to original dtypes and decode categorical variables.
+        Only updates the target column that was imputed.
         
         Returns:
             restored_df: DataFrame with original dtypes and only target column imputed
@@ -1463,10 +1466,10 @@ elif st.session_state.selected_section == "Impute Missing Values":
         restored_df = original_df.copy()
         target_col = metadata['target_column']
         
-        # Only update the target column with imputed values
+        # Get the target column's missing mask
         target_missing_mask = metadata['target_missing_mask']
         
-        # Get the imputed values
+        # Get the imputed values from the imputed dataframe
         imputed_values = imputed_df[target_col].copy()
         
         # If target column was categorical, decode it
@@ -1474,30 +1477,33 @@ elif st.session_state.selected_section == "Impute Missing Values":
             reverse_map = metadata['categorical_mappings'][target_col]['reverse']
             # Round to nearest integer for categorical encoding
             imputed_values = imputed_values.round().astype('Int64')
-            # Map back to original values
-            imputed_values = imputed_values.map(reverse_map)
+            # Map back to original values, handling NaN
+            imputed_values = imputed_values.apply(lambda x: reverse_map.get(x, np.nan) if pd.notna(x) else np.nan)
         
-        # Restore original dtype for target column
+        # Get original dtype for target column
         original_dtype = metadata['original_dtypes'][target_col]
         
-        # Fill in the missing values in the target column
+        # Fill in ONLY the missing values in the target column
+        # Use the original index to ensure alignment
+        for idx in metadata['original_index']:
+            if target_missing_mask.loc[idx]:  # Only update if it was originally missing
+                restored_df.loc[idx, target_col] = imputed_values.loc[idx]
+        
+        # Try to restore original dtype
         if pd.api.types.is_integer_dtype(original_dtype):
-            # For integer types, try to maintain that
             try:
-                # Use nullable Int64 to preserve NaN if any remain
-                imputed_values = imputed_values.astype('float64').round()
-                restored_df.loc[target_missing_mask, target_col] = imputed_values[target_missing_mask]
-                # Try to convert back to original integer type
+                # Round first for integer types
+                restored_df[target_col] = restored_df[target_col].astype('float64').round()
+                # Check if there are any NaN remaining
                 if not restored_df[target_col].isna().any():
                     restored_df[target_col] = restored_df[target_col].astype(original_dtype)
                 else:
-                    # Use nullable integer type
+                    # Use nullable integer type if NaN remain
                     restored_df[target_col] = restored_df[target_col].astype('Int64')
             except:
-                restored_df.loc[target_missing_mask, target_col] = imputed_values[target_missing_mask]
+                pass  # Keep as-is if conversion fails
         else:
-            # For other types, just fill in the values
-            restored_df.loc[target_missing_mask, target_col] = imputed_values[target_missing_mask]
+            # For non-integer types, try direct conversion
             try:
                 restored_df[target_col] = restored_df[target_col].astype(original_dtype)
             except:
@@ -1505,65 +1511,53 @@ elif st.session_state.selected_section == "Impute Missing Values":
         
         return restored_df
     
-    def get_numeric_feature_columns(df, target_column):
+    def get_numeric_feature_columns(prepared_df, target_column):
         """
         Get all numeric columns except the target column for use as features.
         
         Returns:
             list: Column names suitable for use as features
         """
-        # Get all numeric columns
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        
-        # Remove target column
-        feature_cols = [col for col in numeric_cols if col != target_column]
+        # Get all columns except target
+        feature_cols = [col for col in prepared_df.columns if col != target_column]
         
         return feature_cols
     
     def apply_knn_imputation(df, target_column, n_neighbors=5):
         """
-        Apply KNN imputation to target column using all available numeric features.
+        Apply KNN imputation to target column using all available columns as features.
         
         Returns:
             imputed_df: DataFrame with target column imputed
             message: Success/info message
         """
         try:
-            # Prepare data
+            # Prepare the entire dataframe (encode categoricals, make everything numeric)
             prepared_df, metadata = prepare_data_for_advanced_imputation(df, target_column)
             
-            # Check if we have enough features
-            feature_cols = get_numeric_feature_columns(prepared_df, target_column)
+            # Check if target column has at least one non-missing value
+            if prepared_df[target_column].notna().sum() < 1:
+                return df, "Target column is completely empty. Cannot impute with KNN."
             
-            if len(feature_cols) < 1:
-                return df, "Not enough numeric columns for KNN imputation. Need at least 1 other numeric column."
+            # Adjust n_neighbors based on available non-missing data in target
+            non_missing_target_count = prepared_df[target_column].notna().sum()
+            actual_neighbors = min(n_neighbors, max(1, non_missing_target_count - 1))
             
-            # Select only columns with data for imputation
-            cols_to_use = [target_column] + feature_cols
-            imputation_df = prepared_df[cols_to_use].copy()
-            
-            # Count complete rows (no NaN values)
-            complete_rows_count = imputation_df.dropna().shape[0]
-            
-            if complete_rows_count < 1:
-                return df, "Not enough complete rows for KNN imputation. All rows have at least one missing value."
-            
-            # Adjust n_neighbors to not exceed complete rows
-            actual_neighbors = min(n_neighbors, complete_rows_count)
-            
-            # Apply KNN imputation
+            # Apply KNN imputation on the entire prepared dataframe
             from sklearn.impute import KNNImputer
             imputer = KNNImputer(n_neighbors=actual_neighbors)
-            imputed_values = imputer.fit_transform(imputation_df)
+            imputed_values = imputer.fit_transform(prepared_df)
             
             # Put imputed values back into prepared_df
-            prepared_df[cols_to_use] = imputed_values
+            for i, col in enumerate(prepared_df.columns):
+                prepared_df[col] = imputed_values[:, i]
             
-            # Restore to original format
+            # Restore to original format (only the target column gets updated in original df)
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
             
             filled_count = metadata['target_missing_mask'].sum()
-            message = f"KNN imputation successful! Filled {filled_count} missing values using {len(feature_cols)} feature column(s)."
+            feature_count = len(prepared_df.columns) - 1  # All columns except target
+            message = f"KNN imputation successful! Filled {filled_count} missing values using {feature_count} feature column(s)."
             
             return restored_df, message
             
@@ -1572,23 +1566,23 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
     def apply_linear_regression_imputation(df, target_column):
         """
-        Apply Linear Regression imputation to target column.
+        Apply Linear Regression imputation to target column using all other columns as features.
         
         Returns:
             imputed_df: DataFrame with target column imputed
             message: Success/info message
         """
         try:
-            # Prepare data
+            # Prepare the entire dataframe
             prepared_df, metadata = prepare_data_for_advanced_imputation(df, target_column)
             
-            # Get feature columns
+            # Get all feature columns (everything except target)
             feature_cols = get_numeric_feature_columns(prepared_df, target_column)
             
             if len(feature_cols) < 1:
-                return df, "Not enough numeric columns for Linear Regression. Need at least 1 other numeric column."
+                return df, "Not enough columns for Linear Regression. Need at least 1 other column."
             
-            # Split into complete and missing
+            # Split into rows where target is complete vs missing
             target_missing = metadata['target_missing_mask']
             complete_rows = prepared_df[~target_missing].copy()
             missing_rows = prepared_df[target_missing].copy()
@@ -1633,7 +1627,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
     def apply_iterative_imputation(df, target_column, max_iter=10):
         """
-        Apply MICE (Iterative Imputer) to target column.
+        Apply MICE (Iterative Imputer) to target column using all columns.
         
         Returns:
             imputed_df: DataFrame with target column imputed
@@ -1643,31 +1637,23 @@ elif st.session_state.selected_section == "Impute Missing Values":
             if IterativeImputer is None:
                 return df, "IterativeImputer not available. Update sklearn to version 0.21+."
             
-            # Prepare data
+            # Prepare the entire dataframe
             prepared_df, metadata = prepare_data_for_advanced_imputation(df, target_column)
             
-            # Get feature columns
-            feature_cols = get_numeric_feature_columns(prepared_df, target_column)
-            
-            if len(feature_cols) < 1:
-                return df, "Not enough numeric columns for MICE. Need at least 1 other numeric column."
-            
-            # Select columns for imputation
-            cols_to_use = [target_column] + feature_cols
-            imputation_df = prepared_df[cols_to_use].copy()
-            
-            # Apply Iterative Imputation
+            # Apply Iterative Imputation on the entire prepared dataframe
             imputer = IterativeImputer(max_iter=max_iter, random_state=0)
-            imputed_values = imputer.fit_transform(imputation_df)
+            imputed_values = imputer.fit_transform(prepared_df)
             
-            # Put imputed values back
-            prepared_df[cols_to_use] = imputed_values
+            # Put imputed values back into prepared_df
+            for i, col in enumerate(prepared_df.columns):
+                prepared_df[col] = imputed_values[:, i]
             
             # Restore to original format
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
             
             filled_count = metadata['target_missing_mask'].sum()
-            message = f"MICE imputation successful! Filled {filled_count} missing values using {len(feature_cols)} feature column(s)."
+            feature_count = len(prepared_df.columns) - 1
+            message = f"MICE imputation successful! Filled {filled_count} missing values using {feature_count} feature column(s)."
             
             return restored_df, message
             
@@ -1676,7 +1662,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
     def apply_missforest_imputation(df, target_column):
         """
-        Apply MissForest (Random Forest) imputation to target column.
+        Apply MissForest (Random Forest) imputation to target column using all columns.
         
         Returns:
             imputed_df: DataFrame with target column imputed
@@ -1686,31 +1672,23 @@ elif st.session_state.selected_section == "Impute Missing Values":
             if MissForest is None:
                 return df, "MissForest not available. Install: pip install missingpy"
             
-            # Prepare data
+            # Prepare the entire dataframe
             prepared_df, metadata = prepare_data_for_advanced_imputation(df, target_column)
             
-            # Get feature columns
-            feature_cols = get_numeric_feature_columns(prepared_df, target_column)
-            
-            if len(feature_cols) < 1:
-                return df, "Not enough numeric columns for MissForest. Need at least 1 other numeric column."
-            
-            # Select columns for imputation
-            cols_to_use = [target_column] + feature_cols
-            imputation_df = prepared_df[cols_to_use].copy()
-            
-            # Apply MissForest
+            # Apply MissForest on the entire prepared dataframe
             imputer = MissForest(random_state=0)
-            imputed_values = imputer.fit_transform(imputation_df)
+            imputed_values = imputer.fit_transform(prepared_df)
             
-            # Put imputed values back
-            prepared_df[cols_to_use] = imputed_values
+            # Put imputed values back into prepared_df
+            for i, col in enumerate(prepared_df.columns):
+                prepared_df[col] = imputed_values[:, i]
             
             # Restore to original format
             restored_df = restore_data_after_imputation(prepared_df, df, metadata)
             
             filled_count = metadata['target_missing_mask'].sum()
-            message = f"MissForest imputation successful! Filled {filled_count} missing values using {len(feature_cols)} feature column(s)."
+            feature_count = len(prepared_df.columns) - 1
+            message = f"MissForest imputation successful! Filled {filled_count} missing values using {feature_count} feature column(s)."
             
             return restored_df, message
             
@@ -2038,6 +2016,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     st.write("No imputations logged yet.")
     else:
         st.info("Please upload a CSV file to begin.")
+
 
 
 #####################################################################################################################################            

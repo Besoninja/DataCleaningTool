@@ -763,6 +763,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
             
 #####################################################################################################################################
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
 elif st.session_state.selected_section == "Object Conversion":
     df = st.session_state.processed_df
@@ -880,10 +881,18 @@ elif st.session_state.selected_section == "Object Conversion":
                             st.info(f"No conversion was applied to '{col}'.")
                 
                 with col3:
-                    st.metric("Confidence", f"{info['confidence']:.1f}%")
-                    if info['confidence'] > 85:
+                    # Calculate confidence based on selected conversion type
+                    if conversion_choice == 'numeric':
+                        display_confidence = info['numeric_pct']
+                    elif conversion_choice == 'datetime':
+                        display_confidence = info['datetime_pct']
+                    else:  # string
+                        display_confidence = info['string_pct']
+                    
+                    st.metric("Confidence", f"{display_confidence:.1f}%")
+                    if display_confidence > 85:
                         st.success("High confidence")
-                    elif info['confidence'] > 60:
+                    elif display_confidence > 60:
                         st.warning("Medium confidence")
                     else:
                         st.error("Low confidence")
@@ -914,8 +923,36 @@ elif st.session_state.selected_section == "Object Conversion":
         else:
             st.success("No object columns found to convert.")
     
-    # 4.3 Float → Int (keep this section as-is since it's working well)
-    st.subheader("4.3 Convert float columns to integer (if safe)")
+    # Float to Int conversion section
+    st.divider()
+    st.subheader("Convert float columns to integer (if safe)")
+    
+    with st.expander("Why convert floats to integers?"):
+        st.markdown("""
+        ### Benefits of using integers instead of floats:
+        
+        **Memory efficiency:**
+        - Integers use approximately 50% less memory than floats
+        - Important for large datasets or memory-constrained environments
+        
+        **Precision and accuracy:**
+        - Integers have exact representation (no rounding errors)
+        - Floats can introduce tiny rounding errors in calculations
+        - Better for counting, IDs, categorical codes, and whole number data
+        
+        **Performance:**
+        - Integer operations are faster than float operations
+        - Comparisons and sorting are more efficient
+        
+        **Clarity:**
+        - Makes it obvious the column contains whole numbers only
+        - Prevents confusion about decimal precision
+        
+        ### When is it safe?
+        This tool only converts float columns where **all values are whole numbers** (like 1.0, 2.0, 3.0).
+        If any value has a decimal component (like 1.5), the column won't be converted.
+        """)
+    
     enable_floatint = st.checkbox("Enable float-to-int optimization", key="enable_floatint")
     
     if enable_floatint:
@@ -925,7 +962,10 @@ elif st.session_state.selected_section == "Object Conversion":
                 safe_int_cols.append(col)
     
         if safe_int_cols:
+            st.write(f"**Columns that can be safely converted:** {', '.join(safe_int_cols)}")
+            st.write("**Preview of data:**")
             st.dataframe(df[safe_int_cols].head(), use_container_width=True)
+            
             if st.button("Convert to Int", key="btn_floatint"):
                 for col in safe_int_cols:
                     df[col] = df[col].astype('Int64')
@@ -933,7 +973,7 @@ elif st.session_state.selected_section == "Object Conversion":
                 st.session_state.processed_df = df
         else:
             st.info("No float columns are safely convertible to integers.")
-            
+
 #####################################################################################################################################
 # SECTION 5: Optimize for Analysis
 elif st.session_state.selected_section == "Optimize Analysis":

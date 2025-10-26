@@ -415,17 +415,15 @@ st.header(f"{st.session_state.selected_section}")
 # SECTION 1: File Upload Section
 if st.session_state.selected_section == "File Upload":
     st.header("1. Upload Data")
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-
-    if uploaded_file is not None:
-        # Load data if not already loaded
-        if st.session_state.processed_df is None:
-            st.session_state.processed_df = pd.read_csv(uploaded_file)
+    
+    # Check if data is already loaded
+    if st.session_state.processed_df is not None:
         df = st.session_state.processed_df
-        st.success("File successfully uploaded!")
         
-        # Add the Enhanced Information Table and dataset shape here
-        st.subheader("Dataset Overview")
+        # Show current dataset info
+        st.success("Dataset already loaded!")
+        
+        st.subheader("Current Dataset Overview")
         st.write(f"**Dataset Shape:** {df.shape[0]} rows and {df.shape[1]} columns")
         
         st.subheader("Enhanced Information Table")
@@ -438,7 +436,67 @@ if st.session_state.selected_section == "File Upload":
         if columns_with_missing:
             st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
         
-        st.info("Please select an option on the left to start cleaning your data.") 
+        st.info("Navigate to other sections using the sidebar to start cleaning your data.")
+        
+        # Option to upload a new file
+        st.divider()
+        st.subheader("Upload New Dataset")
+        
+        with st.expander("Click here to upload a different CSV file"):
+            st.warning("**Warning:** Uploading a new file will replace your current dataset and **all cleaning work will be lost** unless you export it first from Section 10 (Download Processed Data).")
+            
+            uploaded_file = st.file_uploader("Choose a CSV file", type="csv", key="file_uploader_replace")
+            
+            if uploaded_file is not None:
+                if st.button("Confirm Replace Dataset", type="primary"):
+                    # Reset all session state related to data cleaning
+                    st.session_state.processed_df = pd.read_csv(uploaded_file)
+                    st.session_state.incorrect_entries_analysis = None
+                    st.session_state.processed_columns = set()
+                    
+                    # Clear other session state variables
+                    if 'mixed_cols' in st.session_state:
+                        del st.session_state.mixed_cols
+                    if 'object_suggestions' in st.session_state:
+                        del st.session_state.object_suggestions
+                    if 'text_analysis_done' in st.session_state:
+                        del st.session_state.text_analysis_done
+                    if 'column_analysis_done' in st.session_state:
+                        del st.session_state.column_analysis_done
+                    if 'impute_log' in st.session_state:
+                        st.session_state.impute_log = []
+                    if 'df_backup' in st.session_state:
+                        st.session_state.df_backup = None
+                    
+                    st.success("New file loaded successfully! All previous work has been cleared.")
+                    st.rerun()
+    
+    else:
+        # No data loaded yet - show file uploader
+        st.info("Upload a CSV file to get started with data cleaning.")
+        
+        uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+        
+        if uploaded_file is not None:
+            st.session_state.processed_df = pd.read_csv(uploaded_file)
+            df = st.session_state.processed_df
+            st.success("File successfully uploaded!")
+            
+            # Add the Enhanced Information Table and dataset shape here
+            st.subheader("Dataset Overview")
+            st.write(f"**Dataset Shape:** {df.shape[0]} rows and {df.shape[1]} columns")
+            
+            st.subheader("Enhanced Information Table")
+            info_df, columns_with_missing = generate_enhanced_information_table(df)
+            # Calculate dynamic height based on number of columns
+            dynamic_height = min(38 + (len(info_df) * 35) + 10, 400)  # Cap at 400px for initial view
+            st.dataframe(info_df, height=dynamic_height, use_container_width=True)
+            
+            # Show warning if there are columns with missing values
+            if columns_with_missing:
+                st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
+            
+            st.info("Please select an option on the left to start cleaning your data.")
         
 #####################################################################################################################################
 # SECTION 2: Data Overview

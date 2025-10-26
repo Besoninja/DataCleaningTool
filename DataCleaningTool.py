@@ -1395,7 +1395,6 @@ elif st.session_state.selected_section == "Clean Column Names":
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
-#####################################################################################################################################
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
     df = st.session_state.processed_df
@@ -1769,6 +1768,13 @@ elif st.session_state.selected_section == "Impute Missing Values":
         missing_cols = missing_stats[missing_stats > 0]
     
         st.subheader("Missing Value Summary")
+        
+        # Add refresh button
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("Refresh Summary", use_container_width=True):
+                st.rerun()
+        
         if total_missing == 0:
             st.success("No missing values in your dataset!")
         else:
@@ -2010,9 +2016,6 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         st.info(f"Showing first {num_rows_to_show} rows. {len(missing_indices) - num_rows_to_show} more rows were also imputed.")
                 else:
                     st.info("No missing values were found to impute.")
-                
-                # Rerun to refresh the missing value summary
-                st.rerun()
     
             if st.button("Undo Last Imputation"):
                 if st.session_state.df_backup is not None:

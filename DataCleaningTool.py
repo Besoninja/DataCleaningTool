@@ -527,6 +527,7 @@ if st.session_state.selected_section == "File Upload":
             
             st.info("Please select an option on the left to start cleaning your data.")
             
+            
 #####################################################################################################################################
 # SECTION 2: Data Overview
 elif st.session_state.selected_section == "Data Overview":

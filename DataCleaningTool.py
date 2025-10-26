@@ -412,6 +412,7 @@ with st.sidebar:
 st.header(f"{st.session_state.selected_section}")
 
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 1: File Upload Section
 if st.session_state.selected_section == "File Upload":
     st.header("1. Upload Data")
@@ -435,6 +436,20 @@ if st.session_state.selected_section == "File Upload":
         # Show warning if there are columns with missing values
         if columns_with_missing:
             st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
+            
+            # Create a detailed list of columns with missing values
+            missing_details = []
+            for col_name, col_dtype in columns_with_missing:
+                null_count = df[col_name].isnull().sum()
+                null_pct = (null_count / len(df)) * 100
+                missing_details.append({
+                    'Column': col_name,
+                    'Missing Count': null_count,
+                    'Missing %': f"{null_pct:.1f}%"
+                })
+            
+            missing_df = pd.DataFrame(missing_details)
+            st.dataframe(missing_df, use_container_width=True, hide_index=True)
         
         st.info("Navigate to other sections using the sidebar to start cleaning your data.")
         
@@ -495,9 +510,23 @@ if st.session_state.selected_section == "File Upload":
             # Show warning if there are columns with missing values
             if columns_with_missing:
                 st.warning(f"Found {len(columns_with_missing)} column(s) with missing values")
+                
+                # Create a detailed list of columns with missing values
+                missing_details = []
+                for col_name, col_dtype in columns_with_missing:
+                    null_count = df[col_name].isnull().sum()
+                    null_pct = (null_count / len(df)) * 100
+                    missing_details.append({
+                        'Column': col_name,
+                        'Missing Count': null_count,
+                        'Missing %': f"{null_pct:.1f}%"
+                    })
+                
+                missing_df = pd.DataFrame(missing_details)
+                st.dataframe(missing_df, use_container_width=True, hide_index=True)
             
             st.info("Please select an option on the left to start cleaning your data.")
-        
+            
 #####################################################################################################################################
 # SECTION 2: Data Overview
 elif st.session_state.selected_section == "Data Overview":

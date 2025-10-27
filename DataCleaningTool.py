@@ -2383,7 +2383,13 @@ elif st.session_state.selected_section == "Impute Missing Values":
             if selected_method == "Fill with custom value":
                 custom_value = st.text_input("Enter value to fill missing cells with:")
     
-            if st.button("Apply Imputation", type="primary"):
+            # Dynamic button text based on selection
+            button_text = f"Apply {selected_method} to '{selected_column}'"
+            if apply_all:
+                applicable_count = len([col for col in missing_columns if df[col].dtype == df[selected_column].dtype])
+                button_text = f"Apply {selected_method} to all {applicable_count} column(s)"
+            
+            if st.button(button_text, type="primary"):
                 st.session_state.df_backup = df.copy()
                 
                 # Store rows with missing values for display
@@ -2394,6 +2400,9 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     missing_mask = df[selected_column].isna()
                 
                 missing_indices = df[missing_mask].index.tolist()
+                
+                # Show immediate status message at the top
+                status_placeholder = st.empty()
     
                 def apply_imputation(col):
                     """Apply the selected imputation method to a column"""
@@ -2472,23 +2481,38 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 if apply_all:
                     applicable_columns = [col for col in missing_columns if df[col].dtype == df[selected_column].dtype]
                     results = []
+                    success_count = 0
+                    fail_count = 0
+                    
                     for col in applicable_columns:
                         result = apply_imputation(col)
                         results.append(result)
                         if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
                             st.session_state.impute_log.append((col, selected_method))
+                            success_count += 1
+                        else:
+                            fail_count += 1
                     
                     # Update session state FIRST
                     st.session_state.processed_df = df
                     
-                    # Show results
-                    for result in results:
-                        if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
-                            st.success(result)
-                        elif "not enough" in result.lower() or "no mode" in result.lower() or "must be numeric" in result.lower():
-                            st.warning(result)
-                        else:
-                            st.error(result)
+                    # Show prominent status at top
+                    if success_count > 0 and fail_count == 0:
+                        status_placeholder.success(f"✅ Successfully applied {selected_method} to {success_count} column(s)!")
+                    elif success_count > 0 and fail_count > 0:
+                        status_placeholder.warning(f"⚠️ Applied {selected_method} to {success_count} column(s), but {fail_count} failed.")
+                    else:
+                        status_placeholder.error(f"❌ Failed to apply {selected_method} to all {fail_count} column(s).")
+                    
+                    # Show detailed results below
+                    with st.expander("Detailed Results", expanded=False):
+                        for result in results:
+                            if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
+                                st.success(result)
+                            elif "not enough" in result.lower() or "no mode" in result.lower() or "must be numeric" in result.lower():
+                                st.warning(result)
+                            else:
+                                st.error(result)
                     
                     st.info(f"Applied {selected_method} to {len(applicable_columns)} column(s).")
                 else:
@@ -2497,13 +2521,14 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     # Update session state FIRST
                     st.session_state.processed_df = df
                     
+                    # Show prominent status at top
                     if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
                         st.session_state.impute_log.append((selected_column, selected_method))
-                        st.success(result)
+                        status_placeholder.success(f"✅ {result}")
                     elif "not enough" in result.lower() or "no mode" in result.lower() or "must be numeric" in result.lower():
-                        st.warning(result)
+                        status_placeholder.warning(f"⚠️ {result}")
                     else:
-                        st.error(result)
+                        status_placeholder.error(f"❌ {result}")
 
                 # Force the page to update
                 st.rerun()

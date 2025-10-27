@@ -6,4 +6,3 @@ seaborn
 scikit-learn
 openpyxl
 xlrd
-missingpy

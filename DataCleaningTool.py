@@ -558,21 +558,39 @@ elif st.session_state.selected_section == "Data Overview":
         st.dataframe(df.head())
         
         # Missing Values Summary
-        st.subheader("Missing Values Summary")
-        missing_summary = df.isnull().sum()
-        missing_summary = missing_summary[missing_summary > 0].sort_values(ascending=False)
+        st.subheader("Missing Value Summary")
         
-        if not missing_summary.empty:
-            missing_percent = (missing_summary / df.shape[0]) * 100
-            summary_df = pd.DataFrame({
-                'Missing Count': missing_summary,
-                'Missing %': missing_percent.map(lambda x: f"{x:.2f}%"),
-                'Data Type': [df[col].dtype.name for col in missing_summary.index]
-            })
-            st.write(f"Total Missing Value Proportion: {(df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100:.2f}%")
-            st.dataframe(summary_df)
-        else:
-            st.success("No missing values found in your dataset.")
+        # Add refresh button
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("Refresh Summary", use_container_width=True):
+                st.rerun()
+        
+        if total_missing == 0:
+            st.success("No missing values in your dataset!")
+            
+            # Show undo button even when no missing values
+            if st.button("Undo Last Imputation"):
+                if st.session_state.df_backup is not None:
+                    st.session_state.processed_df = st.session_state.df_backup.copy()
+                    df = st.session_state.processed_df
+                    if st.session_state.impute_log:
+                        undone = st.session_state.impute_log.pop()
+                        st.success(f"Undid imputation: {undone[1]} on '{undone[0]}'")
+                        st.rerun()
+                    else:
+                        st.info("No previous imputation to undo.")
+                else:
+                    st.warning("No backup available to undo.")
+            
+            # Show log even when no missing values
+            with st.expander("Imputation Log"):
+                if st.session_state.impute_log:
+                    st.write("**Recent imputation operations:**")
+                    for idx, (col, method) in enumerate(reversed(st.session_state.impute_log[-10:]), 1):
+                        st.write(f"{idx}. Column: **{col}**, Method: **{method}**")
+                else:
+                    st.write("No imputations logged yet.")
     else:
         st.write("No data loaded yet.")
         

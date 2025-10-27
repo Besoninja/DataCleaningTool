@@ -2320,9 +2320,34 @@ elif st.session_state.selected_section == "Download Processed Data":
     if df is not None:
         st.markdown(f"Your cleaned dataset has **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
         
-        if st.button("Show Final Data Preview"):
+       if st.button("Show Final Data Preview"):
             st.subheader("Final Data Preview")
-            st.dataframe(df.head())
+            
+            # Use the existing Enhanced Information Table function
+            info_df, columns_with_missing = generate_enhanced_information_table(df)
+            
+            # Calculate dynamic height
+            dynamic_height = min(38 + (len(info_df) * 35) + 10, 600)
+            st.dataframe(info_df, height=dynamic_height, use_container_width=True)
+            
+            # Show warning if there are still columns with missing values
+            if columns_with_missing:
+                st.warning(f"Note: {len(columns_with_missing)} column(s) still have missing values:")
+                
+                missing_details = []
+                for col_name, col_dtype in columns_with_missing:
+                    null_count = df[col_name].isnull().sum()
+                    null_pct = (null_count / len(df)) * 100
+                    missing_details.append({
+                        'Column': col_name,
+                        'Missing Count': null_count,
+                        'Missing %': f"{null_pct:.2f}%"
+                    })
+                
+                missing_df = pd.DataFrame(missing_details)
+                st.dataframe(missing_df, use_container_width=True, hide_index=True)
+            else:
+                st.success("All columns are complete - no missing values!")
     
         file_format = st.radio("Choose download format", ["CSV", "Excel (.xlsx)"], horizontal=True)
         

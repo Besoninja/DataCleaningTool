@@ -2016,6 +2016,29 @@ elif st.session_state.selected_section == "Impute Missing Values":
         
         if total_missing == 0:
             st.success("No missing values in your dataset!")
+            
+            # Show undo button even when no missing values
+            if st.button("Undo Last Imputation"):
+                if st.session_state.df_backup is not None:
+                    st.session_state.processed_df = st.session_state.df_backup.copy()
+                    df = st.session_state.processed_df
+                    if st.session_state.impute_log:
+                        undone = st.session_state.impute_log.pop()
+                        st.success(f"Undid imputation: {undone[1]} on '{undone[0]}'")
+                        st.rerun()
+                    else:
+                        st.info("No previous imputation to undo.")
+                else:
+                    st.warning("No backup available to undo.")
+            
+            # Show log even when no missing values
+            with st.expander("Imputation Log"):
+                if st.session_state.impute_log:
+                    st.write("**Recent imputation operations:**")
+                    for idx, (col, method) in enumerate(reversed(st.session_state.impute_log[-10:]), 1):
+                        st.write(f"{idx}. Column: **{col}**, Method: **{method}**")
+                else:
+                    st.write("No imputations logged yet.")
         else:
             percent_missing = (total_missing / (df.shape[0] * df.shape[1])) * 100
             st.write(f"**Total Missing Cells:** `{total_missing}` ({percent_missing:.2f}%)")

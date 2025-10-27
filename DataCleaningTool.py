@@ -2320,7 +2320,7 @@ elif st.session_state.selected_section == "Download Processed Data":
     if df is not None:
         st.markdown(f"Your cleaned dataset has **{df.shape[0]} rows** and **{df.shape[1]} columns**.")
         
-       if st.button("Show Final Data Preview"):
+    if st.button("Show Final Data Preview"):
             st.subheader("Final Data Preview")
             
             # Use the existing Enhanced Information Table function

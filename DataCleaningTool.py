@@ -1758,6 +1758,9 @@ elif st.session_state.selected_section == "Clean Column Names":
 #####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
+#####################################################################################################################################
 # SECTION 9: Impute Missing Values
 elif st.session_state.selected_section == "Impute Missing Values":
     df = st.session_state.processed_df
@@ -1766,7 +1769,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
         st.stop()
     st.header("9. Impute Missing Values")
     
-    # ========== SIMPLE IMPUTATION HELPER FUNCTIONS ==========
+    # ========== IMPUTATION HELPER FUNCTIONS ==========
     
     def apply_knn_imputation_simple(df, target_column, n_neighbors=5):
         """
@@ -2008,6 +2011,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 missing_summary_data.append({
                     'Column': col,
                     'Missing Count': missing_cols[col],
+                    'Missing %': f"{(missing_cols[col] / df.shape[0]) * 100:.1f}%",
                     'Data Type': df[col].dtype.name
                 })
             missing_summary_df = pd.DataFrame(missing_summary_data)
@@ -2082,6 +2086,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 custom_value = st.text_input("Enter value to fill missing cells with:")
     
             if st.button("Apply Imputation", type="primary"):
+                # Store backup BEFORE any changes
                 st.session_state.df_backup = df.copy()
                 
                 # Store rows with missing values for display
@@ -2092,6 +2097,13 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     missing_mask = df[selected_column].isna()
                 
                 missing_indices = df[missing_mask].index.tolist()
+                
+                # Store before values for comparison
+                if apply_all:
+                    applicable_columns = [col for col in missing_columns if df[col].dtype == df[selected_column].dtype]
+                    before_values = df.loc[missing_indices, applicable_columns].copy()
+                else:
+                    before_values = df.loc[missing_indices, [selected_column]].copy()
     
                 def apply_imputation(col):
                     """Apply the selected imputation method to a column"""
@@ -2176,7 +2188,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
                             st.session_state.impute_log.append((col, selected_method))
                     
-                    # Update session state FIRST
+                    # Update session state
                     st.session_state.processed_df = df
                     
                     # Show results
@@ -2192,7 +2204,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 else:
                     result = apply_imputation(selected_column)
                     
-                    # Update session state FIRST
+                    # Update session state
                     st.session_state.processed_df = df
                     
                     if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
@@ -2203,7 +2215,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     else:
                         st.error(result)
                 
-                # Show imputed rows with context
+                # Show imputed rows with before/after comparison
                 st.subheader("Imputation Results")
                 
                 if len(missing_indices) > 0:
@@ -2213,30 +2225,38 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     else:
                         cols_to_show = [selected_column]
                     
-                    # Show comparison
+                    # Get after values
+                    after_values = df.loc[missing_indices, cols_to_show].copy()
+                    
+                    # Create before/after comparison
                     num_rows_to_show = min(10, len(missing_indices))
-                    st.write(f"Showing {num_rows_to_show} of {len(missing_indices)} imputed row(s) with context:")
+                    st.write(f"Showing {num_rows_to_show} of {len(missing_indices)} imputed row(s) with before/after comparison:")
                     
                     for i, idx in enumerate(missing_indices[:num_rows_to_show]):
-                        st.markdown(f"**Imputed Row {idx}** (showing ±2 rows for context):")
+                        st.markdown(f"**Row {idx}:**")
                         
-                        # Get 2 rows above and 2 rows below for context
-                        start_idx = max(0, df.index.get_loc(idx) - 2)
-                        end_idx = min(len(df) - 1, df.index.get_loc(idx) + 2)
+                        # Create comparison dataframe
+                        comparison_data = []
+                        for col in cols_to_show:
+                            before_val = before_values.loc[idx, col]
+                            after_val = after_values.loc[idx, col]
+                            
+                            comparison_data.append({
+                                'Column': col,
+                                'Before': str(before_val) if pd.notna(before_val) else 'MISSING',
+                                'After': str(after_val) if pd.notna(after_val) else 'MISSING'
+                            })
                         
-                        # Get the context window
-                        context_df = df.iloc[start_idx:end_idx + 1][cols_to_show].copy()
-                        
-                        # Add an indicator column to show which row was imputed
-                        context_df.insert(0, 'Status', '')
-                        context_df.loc[idx, 'Status'] = '← IMPUTED'
-                        
-                        st.dataframe(context_df, use_container_width=True)
+                        comparison_df = pd.DataFrame(comparison_data)
+                        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
                     
                     if len(missing_indices) > num_rows_to_show:
                         st.info(f"Showing first {num_rows_to_show} rows. {len(missing_indices) - num_rows_to_show} more rows were also imputed.")
                 else:
                     st.info("No missing values were found to impute.")
+                
+                # Refresh the page to update the missing value summary
+                st.rerun()
     
             if st.button("Undo Last Imputation"):
                 if st.session_state.df_backup is not None:
@@ -2245,6 +2265,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     if st.session_state.impute_log:
                         undone = st.session_state.impute_log.pop()
                         st.success(f"Undid imputation: {undone[1]} on '{undone[0]}'")
+                        st.rerun()
                     else:
                         st.info("No previous imputation to undo.")
                 else:
@@ -2259,7 +2280,6 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     st.write("No imputations logged yet.")
     else:
         st.info("Please upload a CSV file to begin.")
-
 
 #####################################################################################################################################            
 # SECTION 10: Download Processed Data

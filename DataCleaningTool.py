@@ -2085,19 +2085,280 @@ elif st.session_state.selected_section == "Impute Missing Values":
     
             method_descriptions = {
                 # Simple & categorical
-                "Mean": "Replaces missing values with the average of the column. Best for continuous data without extreme outliers.",
-                "Median": "Replaces missing values with the median (middle) value. Robust to outliers.",
-                "Mode": "Replaces missing values with the most frequently occurring value.",
-                "Fill with 'NA' (string literal)": "Inserts the string 'NA' into missing cells. Best for text columns where 'NA' is meaningful.",
-                "Fill with custom value": "Lets you manually enter any value to replace missing cells.",
-                "Forward Fill (LOCF)": "Carries the last known value forward. Good for time-series or ordered data.",
-                "Backward Fill (NOCB)": "Pulls the next valid value backward. Also useful in ordered datasets.",
+                "Mean": """
+                **What it does:** Replaces missing values with the average of all non-missing values in the column.
+                
+                **Best for:** 
+                - Continuous numeric data (temperatures, prices, measurements)
+                - Data that's roughly normally distributed (bell curve shaped)
+                - When you have a moderate amount of missing data (<20%)
+                
+                **Avoid when:**
+                - You have extreme outliers (they'll skew the average)
+                - Data is skewed (use Median instead)
+                - Missing data isn't random (e.g., all missing values are from one specific group)
+                
+                **Example:** If ages are [25, 30, ?, 28, 32], the missing value becomes 28.75 (the average).
+                """,
+                
+                "Median": """
+                **What it does:** Replaces missing values with the middle value when all values are sorted.
+                
+                **Best for:**
+                - Numeric data with outliers (income, house prices, age)
+                - Skewed distributions (most values cluster on one side)
+                - When you want a "typical" value that isn't affected by extremes
+                
+                **Avoid when:**
+                - You need the mathematical average for calculations
+                - Data is categorical or text
+                
+                **Example:** If salaries are [$40k, $45k, ?, $50k, $200k], the missing value becomes $47.5k (not affected by the $200k outlier like Mean would be).
+                """,
+                
+                "Mode": """
+                **What it does:** Replaces missing values with the most frequently occurring value.
+                
+                **Best for:**
+                - Categorical data (colors, categories, labels, yes/no)
+                - Discrete numeric data (number of kids, rating scales)
+                - When the most common value is meaningful
+                
+                **Avoid when:**
+                - All values are unique (no mode exists)
+                - You're dealing with continuous measurements
+                
+                **Example:** If colors are [Red, Blue, ?, Blue, Green, Blue], the missing value becomes Blue (most common).
+                """,
+                
+                "Fill with 'NA' (string literal)": """
+                **What it does:** Inserts the literal text "NA" into missing cells.
+                
+                **Best for:**
+                - Text columns where you want to explicitly mark missing data
+                - When "NA" or "Not Available" is meaningful in your context
+                - Creating categorical labels for missing status
+                
+                **Avoid when:**
+                - Working with numeric columns (use NaN instead)
+                - You want to statistically impute values
+                
+                **Example:** If comments are ["Great", ?, "Good"], it becomes ["Great", "NA", "Good"].
+                """,
+                
+                "Fill with custom value": """
+                **What it does:** Lets you manually specify any value to replace missing cells.
+                
+                **Best for:**
+                - When you know the correct default value (e.g., 0 for "number of complaints")
+                - Categorical data with a specific "Unknown" or "Other" category
+                - When domain knowledge suggests a specific value
+                
+                **Avoid when:**
+                - You're guessing without domain knowledge
+                - The custom value could bias your analysis
+                
+                **Example:** Fill missing "Country" values with "Unknown" or missing "Quantity" with 0.
+                """,
+                
+                "Forward Fill (LOCF)": """
+                **What it does:** Carries the last known value forward to fill gaps. "Last Observation Carried Forward."
+                
+                **Best for:**
+                - Time-series data where values change slowly (stock prices, temperature readings)
+                - Status fields that remain constant until changed
+                - Sequential data where the previous value is a good estimate
+                
+                **Avoid when:**
+                - Data is not ordered or sequential
+                - Missing values are at the start (nothing to carry forward)
+                - Values change rapidly or unpredictably
+                
+                **Example:** If temps are [20°C, 21°C, ?, ?, 25°C], it becomes [20°C, 21°C, 21°C, 21°C, 25°C].
+                """,
+                
+                "Backward Fill (NOCB)": """
+                **What it does:** Pulls the next valid value backward to fill gaps. "Next Observation Carried Backward."
+                
+                **Best for:**
+                - Time-series data when future values are known
+                - When forward fill would create too much lag
+                - Combining with forward fill for better coverage
+                
+                **Avoid when:**
+                - Data is not ordered or sequential
+                - Missing values are at the end (nothing to carry backward)
+                - Future values don't make logical sense for past data
+                
+                **Example:** If temps are [20°C, ?, ?, 25°C, 26°C], it becomes [20°C, 25°C, 25°C, 25°C, 26°C].
+                """,
+                
                 # Advanced
-                "KNN Imputer": "Finds similar rows based on other numeric columns and uses their values to fill in the blanks. Requires numeric data only.",
-                "Linear Regression": "Uses other numeric columns to predict the missing value. Requires numeric data only.",
-                "Iterative Imputer (MICE)": "Iteratively models each column and predicts missing values. Requires numeric data only.",
-                "MissForest (Random Forest)": "Uses random forests to fill missing values. Requires numeric data only.",
-                "Interpolation": "Connects the dots in numeric data. Good for time-series data."
+                "KNN Imputer": """
+                **What it does:** Finds the K most similar rows (neighbors) based on other columns, then uses their values to fill the missing value. Uses distance calculations to determine "similarity."
+                
+                **How it works:**
+                1. Looks at all other numeric columns in your dataset
+                2. Finds the rows most similar to the one with missing data
+                3. Takes the average of those similar rows' values
+                
+                **Best for:**
+                - When missing values relate to other columns (e.g., Age relates to Income and Education)
+                - Datasets with multiple numeric columns that correlate
+                - When you have enough complete rows to find similar patterns
+                - Missing data is "Missing at Random" (MAR)
+                
+                **Requirements:**
+                - At least 2 numeric columns (one to impute, one to use as a feature)
+                - Enough non-missing data to find neighbors (recommended: >50 complete rows)
+                - Other columns should be relevant to the missing column
+                
+                **Settings:**
+                - K (neighbors): Default is 5. Lower K = more influenced by closest matches. Higher K = smoother, more averaged results.
+                
+                **Avoid when:**
+                - You only have 1 numeric column
+                - Other columns don't relate to the missing one
+                - Dataset is very small (<20 rows)
+                
+                **Example:** Predicting missing "Salary" using similar people's Age, Years Experience, and Education Level.
+                """,
+                
+                "Linear Regression": """
+                **What it does:** Builds a mathematical formula (line of best fit) that predicts missing values based on other numeric columns. Like drawing a trend line through your data.
+                
+                **How it works:**
+                1. Learns the relationship between the target column and other columns
+                2. Creates a prediction formula (e.g., Salary = 30000 + 2000*YearsExperience)
+                3. Uses this formula to predict missing values
+                
+                **Best for:**
+                - When there's a clear linear relationship between columns
+                - Continuous numeric data that follows trends
+                - When you have at least 1 good predictor column
+                - Data with moderate correlations
+                
+                **Requirements:**
+                - At least 1 other numeric column to use as predictor
+                - Enough complete rows to train (recommended: >30 rows)
+                - Relationship between columns should be somewhat linear
+                
+                **Strengths:**
+                - Fast and interpretable
+                - Works well with linear trends
+                - Doesn't require tons of data
+                
+                **Avoid when:**
+                - Relationships are non-linear or complex
+                - No clear correlation between columns
+                - Very small datasets (<10 complete rows)
+                
+                **Example:** Predicting missing "House Price" based on Square Footage and Number of Bedrooms.
+                """,
+                
+                "Iterative Imputer (MICE)": """
+                **What it does:** "Multiple Imputation by Chained Equations" - repeatedly imputes values, learning from each round. Think of it as making educated guesses, then refining those guesses multiple times.
+                
+                **How it works:**
+                1. Makes initial guesses for all missing values (using mean)
+                2. For each column, builds a model using other columns
+                3. Re-predicts missing values with the updated model
+                4. Repeats this cycle multiple times until values stabilize
+                
+                **Best for:**
+                - Complex datasets with missing values in multiple columns
+                - When columns are interdependent (Age affects Income, Income affects Savings, etc.)
+                - Larger datasets with moderate missingness (<40%)
+                - When you want sophisticated, relationship-aware imputation
+                
+                **Requirements:**
+                - At least 2 numeric columns
+                - Sufficient complete data to learn patterns
+                - Columns should have meaningful relationships
+                
+                **Settings:**
+                - Max iterations: Default is 10. More iterations = more refined predictions but slower.
+                
+                **Strengths:**
+                - Handles complex relationships between columns
+                - Can impute multiple columns iteratively
+                - Often more accurate than simpler methods
+                
+                **Avoid when:**
+                - Dataset is very small (<50 rows)
+                - You need fast results (this is slower)
+                - Columns are completely independent
+                
+                **Example:** Predicting missing values across Age, Income, Education, and Years Experience where they all influence each other.
+                """,
+                
+                "MissForest (Random Forest)": """
+                **What it does:** Uses Random Forest machine learning to predict missing values. Builds multiple decision trees that "vote" on what the missing value should be.
+                
+                **How it works:**
+                1. Creates many decision trees (a "forest")
+                2. Each tree learns different patterns from your data
+                3. Trees vote on predictions for missing values
+                4. Takes the average/consensus of all tree predictions
+                
+                **Best for:**
+                - Complex, non-linear relationships between columns
+                - Mixed data types (numeric + categorical)
+                - When simpler methods aren't accurate enough
+                - Larger datasets with multiple predictor columns
+                
+                **Requirements:**
+                - At least 2 numeric columns
+                - Enough data for training (recommended: >100 rows)
+                - Computational resources (slower than simple methods)
+                
+                **Strengths:**
+                - Handles non-linear patterns extremely well
+                - Robust to outliers
+                - Can capture complex interactions
+                - Often the most accurate method
+                
+                **Avoid when:**
+                - Dataset is small (<50 rows)
+                - You need fast results (this is the slowest)
+                - Simple relationships (overkill - use KNN or Regression)
+                - Limited computational resources
+                
+                **Example:** Predicting missing "Customer Churn" using complex patterns across Purchase History, Demographics, Website Behavior, and Support Tickets.
+                """,
+                
+                "Interpolation": """
+                **What it does:** "Connects the dots" between known values by drawing a smooth line. Estimates missing values based on their position between surrounding values.
+                
+                **How it works:**
+                1. Looks at the values before and after the gap
+                2. Draws a straight line between them
+                3. Fills in missing values along that line
+                
+                **Best for:**
+                - Time-series data with smooth trends (temperature over time, stock prices)
+                - Sequential numeric data with gradual changes
+                - When missing values are surrounded by known values (not at edges)
+                - Data that changes predictably
+                
+                **Requirements:**
+                - Sequential/ordered data
+                - Missing values must have known values before AND after them
+                - Numeric column only
+                
+                **Strengths:**
+                - Simple and intuitive
+                - Works great for smoothly changing data
+                - Fast and lightweight
+                
+                **Avoid when:**
+                - Data is not sequential or time-based
+                - Missing values are at the start or end
+                - Data has abrupt jumps or changes
+                - Data is categorical
+                
+                **Example:** If temperatures are [20°C, 21°C, ?, ?, 25°C], interpolation fills with [22°C, 23°C] (evenly spaced between 21 and 25).
+                """
             }
     
             if impute_mode == "Simple":

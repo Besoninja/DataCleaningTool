@@ -5,18 +5,12 @@ import openpyxl
 from sklearn.impute import KNNImputer
 from sklearn.linear_model import LinearRegression
 
-# Handle IterativeImputer separately since it's experimental
+# Handle IterativeImputer - needed for MICE imputation
 try:
     from sklearn.experimental import enable_iterative_imputer
     from sklearn.impute import IterativeImputer
 except ImportError:
     IterativeImputer = None
-
-# For MissForest
-try:
-    from missingpy import MissForest
-except ImportError:
-    MissForest = None
 
 # Set the page configuration at the very start
 st.set_page_config(page_title="Data Cleaning Tool", layout="wide")
@@ -340,21 +334,21 @@ def apply_conversions(df, conversion_choices):
         if conversion_type == 'numeric':
             try:
                 df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
-                conversion_results.append(f"{col}: object → numeric")
+                conversion_results.append(f"{col}: object â†’ numeric")
             except Exception as e:
                 st.error(f"Failed to convert {col} to numeric: {str(e)}")
         
         elif conversion_type == 'datetime':
             try:
                 df_copy[col] = pd.to_datetime(df_copy[col], errors='coerce')
-                conversion_results.append(f"{col}: object → datetime")
+                conversion_results.append(f"{col}: object â†’ datetime")
             except Exception as e:
                 st.error(f"Failed to convert {col} to datetime: {str(e)}")
         
         elif conversion_type == 'string':
             try:
                 df_copy[col] = df_copy[col].astype('string')
-                conversion_results.append(f"{col}: object → string")
+                conversion_results.append(f"{col}: object â†’ string")
             except Exception as e:
                 st.error(f"Failed to convert {col} to string: {str(e)}")
     
@@ -653,7 +647,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
             df_copy[col] = pd.to_numeric(df_copy[col], errors='coerce')
             new_nulls = df_copy[col].isna().sum()
             failed_conversions = new_nulls - original_nulls
-            results.append(f"'{col}' converted to numeric ({failed_conversions} non-numeric values → NaN)")
+            results.append(f"'{col}' converted to numeric ({failed_conversions} non-numeric values â†’ NaN)")
             
         elif strategy == "remove_strings":
             # Remove string values (set to NaN)
@@ -666,7 +660,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                 except:
                     df_copy.at[idx, col] = np.nan
                     removed_count += 1
-            results.append(f"String values removed from '{col}' ({removed_count} values → NaN)")
+            results.append(f"String values removed from '{col}' ({removed_count} values â†’ NaN)")
             
         elif strategy == "remove_numbers":
             # Remove numeric values (set to NaN)
@@ -680,11 +674,11 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                     removed_count += 1
                 except:
                     pass
-            results.append(f"Numeric values removed from '{col}' ({removed_count} values → NaN)")
+            results.append(f"Numeric values removed from '{col}' ({removed_count} values â†’ NaN)")
         
         return df_copy, results
     
-    if st.button("🔍 Scan for Mixed-Type Columns"):
+    if st.button("ðŸ” Scan for Mixed-Type Columns"):
         st.session_state.mixed_cols = detect_mixed_columns(df)
     
     if 'mixed_cols' in st.session_state:
@@ -693,7 +687,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
             st.subheader("Mixed-Type Columns Found")
             
             for col, info in mixed_cols.items():
-                with st.expander(f"🔧 Column: '{col}' - {info['numeric_count']} numeric, {info['string_count']} string values", expanded=True):
+                with st.expander(f"ðŸ”§ Column: '{col}' - {info['numeric_count']} numeric, {info['string_count']} string values", expanded=True):
                     
                     col1, col2 = st.columns([1, 1])
                     
@@ -724,9 +718,9 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                             ],
                             format_func=lambda x: {
                                 "convert_all_to_string": "Convert all to string",
-                                "force_to_numeric": "Force to numeric (strings → NaN)",
-                                "remove_strings": "Remove string values (→ NaN)", 
-                                "remove_numbers": "Remove numeric values (→ NaN)"
+                                "force_to_numeric": "Force to numeric (strings â†’ NaN)",
+                                "remove_strings": "Remove string values (â†’ NaN)", 
+                                "remove_numbers": "Remove numeric values (â†’ NaN)"
                             }[x],
                             index=0 if default_strategy == "remove_strings" else 1,
                             key=f"strategy_{col}"
@@ -748,7 +742,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
                             
                             st.success("Changes applied!")
                             for result in results:
-                                st.write(f"• {result}")
+                                st.write(f"â€¢ {result}")
                             
                             # Update the main dataframe
                             st.session_state.processed_df = df_updated
@@ -867,7 +861,7 @@ elif st.session_state.selected_section == "Object Conversion":
                         if results:
                             st.success(f"Conversion applied to '{col}'!")
                             for result in results:
-                                st.write(f"• {result}")
+                                st.write(f"â€¢ {result}")
                             
                             # Update the main dataframe
                             st.session_state.processed_df = df_converted
@@ -909,7 +903,7 @@ elif st.session_state.selected_section == "Object Conversion":
                     if results:
                         st.success("All conversions applied successfully!")
                         for result in results:
-                            st.write(f"• {result}")
+                            st.write(f"â€¢ {result}")
                         
                         # Update the main dataframe
                         st.session_state.processed_df = df_converted
@@ -970,7 +964,7 @@ elif st.session_state.selected_section == "Object Conversion":
             if st.button("Convert to Int", key="btn_floatint"):
                 for col in safe_int_cols:
                     df[col] = df[col].astype('Int64')
-                    st.success(f"{col}: float64 → Int64")
+                    st.success(f"{col}: float64 â†’ Int64")
                 st.session_state.processed_df = df
         else:
             st.info("No float columns are safely convertible to integers.")
@@ -1027,7 +1021,7 @@ elif st.session_state.selected_section == "Optimize Analysis":
         
         **What is downcasting?**
         - Converting numbers to smaller storage formats when possible
-        - Examples: int64 → int32, int64 → int16, float64 → float32
+        - Examples: int64 â†’ int32, int64 â†’ int16, float64 â†’ float32
         
         **Why downcast?**
         
@@ -1071,7 +1065,7 @@ elif st.session_state.selected_section == "Optimize Analysis":
     st.markdown("""
     Final optimization for memory and performance:
     - Convert low-cardinality string columns to `category` (huge memory savings for repeated values)
-    - Optionally downcast numeric types to smaller formats (e.g., int64 → int32)
+    - Optionally downcast numeric types to smaller formats (e.g., int64 â†’ int32)
     """)
     
     optimize_cats = st.checkbox("Convert low-cardinality string columns to 'category'", value=True)
@@ -1096,13 +1090,13 @@ elif st.session_state.selected_section == "Optimize Analysis":
                     memory_saved = memory_before - memory_after
                     percent_saved = (memory_saved / memory_before) * 100
                     
-                    optimization_report.append(f"{col}: object → category ({unique_count} unique values, {percent_saved:.1f}% memory saved)")
+                    optimization_report.append(f"{col}: object â†’ category ({unique_count} unique values, {percent_saved:.1f}% memory saved)")
                     converted_count += 1
             
             if converted_count > 0:
                 st.success(f"Converted {converted_count} column(s) to category")
                 for report in optimization_report:
-                    st.write(f"• {report}")
+                    st.write(f"â€¢ {report}")
             else:
                 st.info("No columns met the criteria for category conversion")
     
@@ -1115,12 +1109,12 @@ elif st.session_state.selected_section == "Optimize Analysis":
                 new_dtype = df[col].dtype
                 
                 if original_dtype != new_dtype:
-                    downcast_report.append(f"{col}: {original_dtype} → {new_dtype}")
+                    downcast_report.append(f"{col}: {original_dtype} â†’ {new_dtype}")
             
             if downcast_report:
                 st.success(f"Downcasted {len(downcast_report)} column(s)")
                 for report in downcast_report:
-                    st.write(f"• {report}")
+                    st.write(f"â€¢ {report}")
             else:
                 st.info("No numeric columns could be downcasted further")
     
@@ -1153,8 +1147,8 @@ elif st.session_state.selected_section == "Handle Outliers":
         3. **IQR**: The difference between Q3 and Q1 (captures the "middle 50%" of your data)
         
         **Outliers are defined as:**
-        - Values below: Q1 - (multiplier × IQR)
-        - Values above: Q3 + (multiplier × IQR)
+        - Values below: Q1 - (multiplier Ã— IQR)
+        - Values above: Q3 + (multiplier Ã— IQR)
         
         ### Instructions:
         1. **Adjust the multiplier** below (1.5 is standard - lower values find more outliers, higher values find fewer)
@@ -1569,7 +1563,7 @@ elif st.session_state.selected_section == "Clean Column Names":
     # Column Analysis Button
     col1, col2 = st.columns([1, 3])
     with col1:
-        analyze_button = st.button("🔍 Analyze Column Names", type="secondary")
+        analyze_button = st.button("ðŸ” Analyze Column Names", type="secondary")
     with col2:
         if st.session_state.column_analysis_done:
             issues_found = sum(len(issues) for issues in st.session_state.column_issues.values())
@@ -1636,7 +1630,7 @@ elif st.session_state.selected_section == "Clean Column Names":
             if problematic_cols:
                 for col in problematic_cols:
                     issues = st.session_state.column_issues[col]
-                    st.write(f"• `{col}` - {', '.join(issues)}")
+                    st.write(f"â€¢ `{col}` - {', '.join(issues)}")
             else:
                 st.write("None")
         
@@ -1644,14 +1638,14 @@ elif st.session_state.selected_section == "Clean Column Names":
             st.write("**Clean columns:**")
             if clean_cols:
                 for col in clean_cols:
-                    st.write(f"• `{col}`")
+                    st.write(f"â€¢ `{col}`")
             else:
                 st.write("None")
         
         # Show cleanup options only if there are issues or user wants to standardize
         total_issues = sum(len(issues) for issues in st.session_state.column_issues.values())
         
-        if total_issues > 0 or st.checkbox("🔧 Show cleanup options anyway"):
+        if total_issues > 0 or st.checkbox("ðŸ”§ Show cleanup options anyway"):
             st.subheader("Cleanup Options")
             
             rename_opts = st.multiselect(
@@ -1693,7 +1687,7 @@ elif st.session_state.selected_section == "Clean Column Names":
                 if changes_list:
                     st.write("**Column name changes:**")
                     for original, cleaned in changes_list:
-                        st.write(f"• `{original}` → `{cleaned}`")
+                        st.write(f"â€¢ `{original}` â†’ `{cleaned}`")
                     
                     st.write(f"**Summary:** {len(changes_list)} out of {len(st.session_state.current_columns)} columns will be renamed")
                 else:
@@ -1742,7 +1736,7 @@ elif st.session_state.selected_section == "Clean Column Names":
                         # Show what was changed
                         st.write("**Changes made:**")
                         for old_name, new_name in rename_mapping.items():
-                            st.write(f"• `{old_name}` → `{new_name}`")
+                            st.write(f"â€¢ `{old_name}` â†’ `{new_name}`")
                     else:
                         st.info("No column names needed to be changed.")
                         
@@ -1917,45 +1911,6 @@ elif st.session_state.selected_section == "Impute Missing Values":
             
         except Exception as e:
             return df, f"MICE imputation failed: {str(e)}"
-    
-    def apply_missforest_simple(df, target_column):
-        """
-        Apply MissForest imputation to a numeric target column.
-        """
-        try:
-            if MissForest is None:
-                return df, "MissForest not available. Install with: pip install missingpy"
-            
-            # Get all numeric columns
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-            
-            if target_column not in numeric_cols:
-                return df, "Target column must be numeric for MissForest."
-            
-            if len(numeric_cols) < 2:
-                return df, "Need at least 2 numeric columns for MissForest."
-            
-            # Work with numeric columns only
-            df_numeric = df[numeric_cols].copy()
-            
-            # Apply MissForest
-            imputer = MissForest(random_state=0)
-            imputed_array = imputer.fit_transform(df_numeric)
-            
-            # Extract target column
-            target_col_idx = numeric_cols.index(target_column)
-            imputed_target = imputed_array[:, target_col_idx]
-            
-            # Update only missing values
-            result_df = df.copy()
-            missing_mask = df[target_column].isna()
-            result_df.loc[missing_mask, target_column] = imputed_target[missing_mask]
-            
-            filled_count = missing_mask.sum()
-            return result_df, f"MissForest imputation successful! Filled {filled_count} missing values."
-            
-        except Exception as e:
-            return df, f"MissForest imputation failed: {str(e)}"
     
     def apply_interpolation_simple(df, target_column):
         """
@@ -2157,7 +2112,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 - Missing values are at the start (nothing to carry forward)
                 - Values change rapidly or unpredictably
                 
-                **Example:** If temps are [20°C, 21°C, ?, ?, 25°C], it becomes [20°C, 21°C, 21°C, 21°C, 25°C].
+                **Example:** If temps are [20Â°C, 21Â°C, ?, ?, 25Â°C], it becomes [20Â°C, 21Â°C, 21Â°C, 21Â°C, 25Â°C].
                 """,
                 
                 "Backward Fill (NOCB)": """
@@ -2173,7 +2128,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 - Missing values are at the end (nothing to carry backward)
                 - Future values don't make logical sense for past data
                 
-                **Example:** If temps are [20°C, ?, ?, 25°C, 26°C], it becomes [20°C, 25°C, 25°C, 25°C, 26°C].
+                **Example:** If temps are [20Â°C, ?, ?, 25Â°C, 26Â°C], it becomes [20Â°C, 25Â°C, 25Â°C, 25Â°C, 26Â°C].
                 """,
                 
                 # Advanced
@@ -2275,41 +2230,6 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 **Example:** Predicting missing values across Age, Income, Education, and Years Experience where they all influence each other.
                 """,
                 
-                "MissForest (Random Forest)": """
-                **What it does:** Uses Random Forest machine learning to predict missing values. Builds multiple decision trees that "vote" on what the missing value should be.
-                
-                **How it works:**
-                1. Creates many decision trees (a "forest")
-                2. Each tree learns different patterns from your data
-                3. Trees vote on predictions for missing values
-                4. Takes the average/consensus of all tree predictions
-                
-                **Best for:**
-                - Complex, non-linear relationships between columns
-                - Mixed data types (numeric + categorical)
-                - When simpler methods aren't accurate enough
-                - Larger datasets with multiple predictor columns
-                
-                **Requirements:**
-                - At least 2 numeric columns
-                - Enough data for training (recommended: >100 rows)
-                - Computational resources (slower than simple methods)
-                
-                **Strengths:**
-                - Handles non-linear patterns extremely well
-                - Robust to outliers
-                - Can capture complex interactions
-                - Often the most accurate method
-                
-                **Avoid when:**
-                - Dataset is small (<50 rows)
-                - You need fast results (this is the slowest)
-                - Simple relationships (overkill - use KNN or Regression)
-                - Limited computational resources
-                
-                **Example:** Predicting missing "Customer Churn" using complex patterns across Purchase History, Demographics, Website Behavior, and Support Tickets.
-                """,
-                
                 "Interpolation": """
                 **What it does:** "Connects the dots" between known values by drawing a smooth line. Estimates missing values based on their position between surrounding values.
                 
@@ -2340,14 +2260,14 @@ elif st.session_state.selected_section == "Impute Missing Values":
                 - Data has abrupt jumps or changes
                 - Data is categorical
                 
-                **Example:** If temperatures are [20°C, 21°C, ?, ?, 25°C], interpolation fills with [22°C, 23°C] (evenly spaced between 21 and 25).
+                **Example:** If temperatures are [20Â°C, 21Â°C, ?, ?, 25Â°C], interpolation fills with [22Â°C, 23Â°C] (evenly spaced between 21 and 25).
                 """
             }
     
             if impute_mode == "Simple":
                 methods = ["Mean", "Median", "Mode", "Fill with 'NA' (string literal)", "Fill with custom value", "Forward Fill (LOCF)", "Backward Fill (NOCB)"]
             elif impute_mode == "Advanced":
-                methods = ["KNN Imputer", "Linear Regression", "Iterative Imputer (MICE)", "MissForest (Random Forest)", "Interpolation"]
+                methods = ["KNN Imputer", "Linear Regression", "Iterative Imputer (MICE)", "Interpolation"]
             elif impute_mode == "Categorical":
                 methods = ["Mode", "Fill with 'NA' (string literal)", "Fill with custom value"]
             else:
@@ -2442,12 +2362,6 @@ elif st.session_state.selected_section == "Impute Missing Values":
                                 df[col] = result_df[col]
                             return message
                             
-                        elif selected_method == "MissForest (Random Forest)":
-                            result_df, message = apply_missforest_simple(df, col)
-                            if "successful" in message:
-                                df[col] = result_df[col]
-                            return message
-                            
                         elif selected_method == "Interpolation":
                             result_df, message = apply_interpolation_simple(df, col)
                             if "successful" in message:
@@ -2481,11 +2395,11 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     
                     # Show prominent status at top
                     if success_count > 0 and fail_count == 0:
-                        status_placeholder.success(f"✅ Successfully applied {selected_method} to {success_count} column(s)!")
+                        status_placeholder.success(f"âœ… Successfully applied {selected_method} to {success_count} column(s)!")
                     elif success_count > 0 and fail_count > 0:
-                        status_placeholder.warning(f"⚠️ Applied {selected_method} to {success_count} column(s), but {fail_count} failed.")
+                        status_placeholder.warning(f"âš ï¸ Applied {selected_method} to {success_count} column(s), but {fail_count} failed.")
                     else:
-                        status_placeholder.error(f"❌ Failed to apply {selected_method} to all {fail_count} column(s).")
+                        status_placeholder.error(f"âŒ Failed to apply {selected_method} to all {fail_count} column(s).")
                     
                     # Show detailed results below
                     with st.expander("Detailed Results", expanded=False):
@@ -2507,11 +2421,11 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     # Show prominent status at top
                     if "successful" in result.lower() or result.startswith("Applied") or result.startswith("Filled"):
                         st.session_state.impute_log.append((selected_column, selected_method))
-                        status_placeholder.success(f"✅ {result}")
+                        status_placeholder.success(f"âœ… {result}")
                     elif "not enough" in result.lower() or "no mode" in result.lower() or "must be numeric" in result.lower():
-                        status_placeholder.warning(f"⚠️ {result}")
+                        status_placeholder.warning(f"âš ï¸ {result}")
                     else:
-                        status_placeholder.error(f"❌ {result}")
+                        status_placeholder.error(f"âŒ {result}")
 
                 # Force the page to update
                 st.rerun()
@@ -2531,7 +2445,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                     st.write(f"Showing {num_rows_to_show} of {len(missing_indices)} imputed row(s) with context:")
                     
                     for i, idx in enumerate(missing_indices[:num_rows_to_show]):
-                        st.markdown(f"**Imputed Row {idx}** (showing ±2 rows for context):")
+                        st.markdown(f"**Imputed Row {idx}** (showing Â±2 rows for context):")
                         
                         # Get 2 rows above and 2 rows below for context
                         start_idx = max(0, df.index.get_loc(idx) - 2)
@@ -2542,7 +2456,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         
                         # Add an indicator column to show which row was imputed
                         context_df.insert(0, 'Status', '')
-                        context_df.loc[idx, 'Status'] = '← IMPUTED'
+                        context_df.loc[idx, 'Status'] = 'â† IMPUTED'
                         
                         st.dataframe(context_df, use_container_width=True)
                     

@@ -2202,6 +2202,9 @@ elif st.session_state.selected_section == "Impute Missing Values":
                         st.warning(result)
                     else:
                         st.error(result)
+
+                # Force the page to update
+                st.rerun()
                 
                 # Show imputed rows with context
                 st.subheader("Imputation Results")

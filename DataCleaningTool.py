@@ -2325,25 +2325,29 @@ elif st.session_state.selected_section == "Download Processed Data":
             st.dataframe(df.head())
     
         file_format = st.radio("Choose download format", ["CSV", "Excel (.xlsx)"], horizontal=True)
+        
+        # Generate timestamp for filename
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
         if file_format == "CSV":
             csv_data = df.to_csv(index=False).encode("utf-8")
             st.download_button(
                 label="Download CSV File",
                 data=csv_data,
-                file_name="cleaned_data.csv",
+                file_name=f"cleaned_data_{timestamp}.csv",
                 mime="text/csv"
             )
         else:
             from io import BytesIO
             output = BytesIO()
-            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name='CleanedData')
-                writer.save()
+            output.seek(0)
             st.download_button(
                 label="Download Excel File",
                 data=output.getvalue(),
-                file_name="cleaned_data.xlsx",
+                file_name=f"cleaned_data_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     else:

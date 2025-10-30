@@ -678,7 +678,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
         
         return df_copy, results
     
-    if st.button("” Scan for Mixed-Type Columns"):
+    if st.button("Scan for Mixed-Type Columns"):
         st.session_state.mixed_cols = detect_mixed_columns(df)
     
     if 'mixed_cols' in st.session_state:

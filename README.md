@@ -1,10 +1,10 @@
 # Data Cleaning Tool
 
-A comprehensive Streamlit-based application for interactive data cleaning and preprocessing. This tool provides an intuitive interface for handling common data quality issues in two-dimensional data (Excel and CSV files).
+A comprehensive Streamlit-based application for interactive cleaning and preprocessing of tabular data. This tool provides an intuitive interface for handling common data quality issues in CSV files and Excel spreadsheets.
 
 ## Overview
 
-The Data Cleaning Tool streamlines the data preprocessing workflow by providing a guided, step-by-step interface for identifying and resolving data quality issues. Whether you're preparing data for analysis, machine learning, or visualization, this tool helps you clean and standardize your datasets efficiently.
+The Data Cleaning Tool streamlines the data preprocessing workflow by providing a guided, step-by-step interface for identifying and resolving data quality issues in tabular datasets. Whether you're preparing data for analysis, machine learning, or visualization, this tool helps you clean and standardize your data efficiently.
 
 ## Key Features
 
@@ -41,11 +41,11 @@ The Data Cleaning Tool streamlines the data preprocessing workflow by providing 
 
 ### Planned Features
 
-- Text file cleaning (TXT, MD formats)
+- Multi-step undo across all sections
 - Batch processing for multiple files
 - Custom cleaning rule definitions
-- Export cleaning pipeline as reusable scripts
-- Data profiling reports
+- Export cleaning pipeline as reusable Python scripts
+- Data profiling and quality reports
 
 ## Quick Start
 
@@ -54,6 +54,36 @@ The easiest way to use the Data Cleaning Tool is through the hosted Streamlit ap
 **Access the app here: [https://datacleaningtool.streamlit.app/](https://datacleaningtool.streamlit.app/)**
 
 No installation required - simply navigate to the URL and start cleaning your data immediately.
+
+### Working with Database Data
+
+If your data is stored in a database (MySQL, PostgreSQL, Oracle, SQLite, etc.):
+
+1. **Export your data to CSV** from your database using your preferred method
+2. **Clean the data** using this tool
+3. **Import the cleaned CSV** back into your database
+
+This export/import workflow is recommended because it:
+- Keeps your original data untouched (audit trail)
+- Works with any database system
+- Avoids security risks of direct database connections
+- Allows testing cleaning operations before applying to production data
+
+### Security and Privacy
+
+**Data privacy:**
+- All data processing happens in your browser session via Streamlit
+- Uploaded files are stored temporarily in Streamlit's session state
+- Data is automatically cleared when you close your browser or end the session
+- The application developer cannot access your uploaded data
+
+**Security considerations:**
+- This tool uses Streamlit's built-in security measures
+- For sensitive data, consider running the tool locally (see Installation section)
+- Never upload data containing passwords, API keys, or other credentials
+- Review Streamlit's security documentation at [https://docs.streamlit.io/](https://docs.streamlit.io/) for detailed information
+
+**Disclaimer:** While reasonable security measures are in place, this tool is provided as-is. For highly sensitive or regulated data (HIPAA, PCI-DSS, etc.), consult your organization's security policies before using cloud-hosted tools.
 
 ## Installation (For Local Development)
 
@@ -102,6 +132,8 @@ All dependencies are listed in `requirements.txt` with compatible versions.
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+  - [Working with Database Data](#working-with-database-data)
+  - [Security and Privacy](#security-and-privacy)
 - [Installation](#installation-for-local-development)
 - [Usage Guide](#usage-guide)
 - [Undo Functionality](#undo-functionality)
@@ -243,22 +275,22 @@ GitHub will automatically format your issue using the appropriate template. Plea
 ## Roadmap
 
 ### Version 0.2.0 (Planned)
-- Text file cleaning (TXT format)
-- Markdown file cleaning (MD format)
-- Basic text preprocessing: tokenization, stopword removal
-- Batch file processing
+- Multi-step undo functionality across all sections
+- Named checkpoints for saving cleaning states
+- Batch file processing (multiple CSVs at once)
+- Export cleaning operations as reusable Python script
 
 ### Version 0.3.0 (Planned)
 - Custom cleaning rule builder
-- Export cleaning pipeline as Python script
-- Data profiling reports (distributions, correlations)
-- Automated cleaning suggestions
+- Data profiling reports (distributions, correlations, quality scores)
+- Automated cleaning suggestions based on data patterns
+- Column relationship analysis
 
-### Version 0.4.0 (Planned)
-- Database connectivity (SQL import/export)
-- Scheduled cleaning jobs
-- REST API for programmatic access
-- Docker containerization
+### Version 0.4.0 (Future)
+- Scheduled cleaning workflows
+- API for programmatic access
+- Plugin system for custom transformations
+- Docker containerization for enterprise deployment
 
 ## Contributing
 

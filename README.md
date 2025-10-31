@@ -127,7 +127,7 @@ The tool relies on the following Python libraries:
 - **openpyxl** - Excel file support
 - **xlrd** - Legacy Excel file reading
 
-All dependencies are listed in `requirements.txt` with compatible versions.
+All dependencies are listed in `requirements.txt`.
 
 ## Table of Contents
 

@@ -572,6 +572,7 @@ elif st.session_state.selected_section == "Data Overview":
         st.write("No data loaded yet.")
         
 #####################################################################################################################################
+#####################################################################################################################################
 # SECTION 3: Identify and Clean Mixed-Type Columns
 elif st.session_state.selected_section == "Mixed-Type Columns":
     df = st.session_state.processed_df
@@ -756,7 +757,6 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
         else:
             st.success("No mixed-type columns detected!")
             
-#####################################################################################################################################
 #####################################################################################################################################
 #####################################################################################################################################
 # SECTION 4: Smart Object Column Conversion
@@ -1539,6 +1539,7 @@ elif st.session_state.selected_section == "Clean Text Data":
     else:
         st.info("Click 'Run Text Detection' to analyze your dataset and find text columns that need cleaning.")
 
+#####################################################################################################################################
 #####################################################################################################################################
 # SECTION 8: Clean Column Names
 elif st.session_state.selected_section == "Clean Column Names":
@@ -2487,8 +2488,7 @@ elif st.session_state.selected_section == "Impute Missing Values":
     else:
         st.info("Please upload a CSV file to begin.")
 
-
-
+#####################################################################################################################################
 #####################################################################################################################################            
 # SECTION 10: Download Processed Data
 elif st.session_state.selected_section == "Download Processed Data":

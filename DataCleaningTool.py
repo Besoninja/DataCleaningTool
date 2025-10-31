@@ -401,16 +401,7 @@ with st.sidebar:
         ):
             st.session_state.selected_section = section
             st.rerun()
-    # GitHub link at bottom
-    st.divider()
-    st.markdown(
-        "<small>**GitHub Repository**<br>"
-        "View source code, report issues, or fork this project:<br>"
-        "[github.com/Besoninja/DataCleaningTool]"
-        "(https://github.com/Besoninja/DataCleaningTool)</small>",
-        unsafe_allow_html=True
-    )
-
+    
 # Main Content Area
 st.header(f"{st.session_state.selected_section}")
 

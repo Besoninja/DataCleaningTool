@@ -1,6 +1,6 @@
 # Data Cleaning Tool
 
-A comprehensive Streamlit-based application for interactive data cleaning and preprocessing. This tool provides an intuitive interface for handling common data quality issues in CSV files and dataframes, with plans to support text and markdown file cleaning.
+A comprehensive Streamlit-based application for interactive data cleaning and preprocessing. This tool provides an intuitive interface for handling common data quality issues in two-dimensional data (Excel and CSV files).
 
 ## Overview
 

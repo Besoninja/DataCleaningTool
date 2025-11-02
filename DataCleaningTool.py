@@ -688,7 +688,7 @@ elif st.session_state.selected_section == "Mixed-Type Columns":
             st.subheader("Mixed-Type Columns Found")
             
             for col, info in mixed_cols.items():
-                with st.expander(f"”§ Column: '{col}' - {info['numeric_count']} numeric, {info['string_count']} string values", expanded=True):
+                with st.expander(f"Column: '{col}' - {info['numeric_count']} numeric, {info['string_count']} string values", expanded=True):
                     
                     col1, col2 = st.columns([1, 1])
                     
@@ -1646,7 +1646,7 @@ elif st.session_state.selected_section == "Clean Column Names":
         # Show cleanup options only if there are issues or user wants to standardize
         total_issues = sum(len(issues) for issues in st.session_state.column_issues.values())
         
-        if total_issues > 0 or st.checkbox("”§ Show cleanup options anyway"):
+        if total_issues > 0 or st.checkbox("Show cleanup options anyway"):
             st.subheader("Cleanup Options")
             
             rename_opts = st.multiselect(
